@@ -1,0 +1,1140 @@
+openapi: 3.1.0
+info:
+  title: KesselOps — Guest Experience API (Service D)
+  description: |
+    Guest profiles, reservations, reverse guest evaluations, guest checks (transactions),
+    and check line items. The MONEY IN side of KesselOps.
+
+    **Package:** `com.kesselops.guest`
+
+    **Cross-domain calls made by this service:**
+    - → Menu: `MenuService.getRecipeIngredients(menuItemId)` (auto-depletion on check close)
+    - → Inventory: `ProductService.consume(productId, qty)` (deplete stock)
+    - → Inventory: `StockService.log(MENU_DEPLETION, productId, qty, shiftId)` (audit trail)
+    - → AI: `AIOrchestrationService.generate(vars)` (guest AI insight)
+    - → WebSocket: `push(CHECK_CLOSED, checkId, amount)` (live revenue dashboard)
+
+    **Cross-domain calls received:**
+    - ← Inventory: `ReservationService.countByDate(venueId, date)` (staffing predictions)
+    - ← Operations: `GuestCheckService.getOpenCheckCount(venueId)` (dashboard)
+    - ← Operations: `GuestCheckService.getRevenueToday(venueId)` (dashboard)
+    - ← Operations: `GuestCheckService.getRevenueByShift(shiftId)` (analytics)
+    - ← Operations: `ReservationService.getPendingCount(venueId)` (dashboard)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.kesselops.railway.app
+    description: Production
+
+tags:
+  - name: Guest Profiles
+    description: Guest management with lifetime value, visit frequency, and VIP detection
+  - name: Reservations
+    description: "Full lifecycle: PENDING → CONFIRMED → SEATED → COMPLETED / NO_SHOW"
+  - name: Guest Evaluations
+    description: "REVERSE RATING — the gastronomer rates guests. Ludwig Heer's SECRET WEAPON."
+  - name: Guest Checks
+    description: "Transaction entity — who bought what, when, for how much. MONEY IN."
+  - name: Guest Check Items
+    description: Line items on a guest check — what was ordered
+
+security:
+  - BearerAuth: []
+
+paths:
+
+  # ═══════════════════════════════════════
+  # D1: GUEST PROFILES
+  # ═══════════════════════════════════════
+
+  /api/guests:
+    post:
+      operationId: createGuest
+      tags: [Guest Profiles]
+      summary: Create a new guest profile
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGuestRequest'
+      responses:
+        '201':
+          description: Guest created with initial scores
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestProfile'
+
+    get:
+      operationId: listGuests
+      tags: [Guest Profiles]
+      summary: List guest profiles (paginated, filterable, searchable)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Search by name, email, phone
+        - name: isVIP
+          in: query
+          schema: { type: boolean }
+        - name: minScore
+          in: query
+          schema: { type: number, format: double }
+        - name: maxNoShows
+          in: query
+          schema: { type: integer }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated guest list
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/guests/{id}:
+    get:
+      operationId: getGuest
+      tags: [Guest Profiles]
+      summary: Get a single guest profile with full details
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF`'
+      parameters:
+        - $ref: '#/components/parameters/GuestIdPath'
+      responses:
+        '200':
+          description: Guest profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestProfile'
+
+    put:
+      operationId: updateGuest
+      tags: [Guest Profiles]
+      summary: Update guest profile (contact info, preferences, notes)
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF`'
+      parameters:
+        - $ref: '#/components/parameters/GuestIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGuestRequest'
+      responses:
+        '200':
+          description: Updated guest
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestProfile'
+
+  /api/guests/{id}/history:
+    get:
+      operationId: getGuestHistory
+      tags: [Guest Profiles]
+      summary: Complete visit history — reservations, evaluations, guest checks
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/GuestIdPath'
+      responses:
+        '200':
+          description: Guest history
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestHistory'
+
+  /api/guests/{id}/ai-insight:
+    get:
+      operationId: getGuestAiInsight
+      tags: [Guest Profiles]
+      summary: AI-generated natural language summary of the guest
+      description: |
+        **Roles:** `OWNER`, `MANAGER`
+        **Cross-domain:** → AI (`AIOrchestrationService.generate(vars)`)
+      parameters:
+        - $ref: '#/components/parameters/GuestIdPath'
+      responses:
+        '200':
+          description: AI insight
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          insight:
+                            type: string
+                            example: "Anna Weber is a VIP regular (24 visits, €1,080 lifetime spend). She prefers window seating and visits primarily on Tuesday evenings."
+
+  # ═══════════════════════════════════════
+  # D2: RESERVATIONS
+  # ═══════════════════════════════════════
+
+  /api/reservations:
+    post:
+      operationId: createReservation
+      tags: [Reservations]
+      summary: Create a new reservation
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        `guestProfileId` is optional (walk-in reservations can omit it).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: Reservation created with status PENDING
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Reservation'
+
+    get:
+      operationId: listReservations
+      tags: [Reservations]
+      summary: List reservations (paginated, filterable by venue, date, status)
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ReservationStatus' }
+        - name: guestProfileId
+          in: query
+          schema: { type: integer, format: int64 }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated reservations
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/reservations/{id}:
+    get:
+      operationId: getReservation
+      tags: [Reservations]
+      summary: Get a single reservation with guest details
+      parameters:
+        - $ref: '#/components/parameters/ReservationIdPath'
+      responses:
+        '200':
+          description: Reservation with guest summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReservationDetail'
+
+  /api/reservations/{id}/confirm:
+    patch:
+      operationId: confirmReservation
+      tags: [Reservations]
+      summary: "Confirm a pending reservation (PENDING → CONFIRMED)"
+      parameters:
+        - $ref: '#/components/parameters/ReservationIdPath'
+      responses:
+        '200':
+          description: Confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/reservations/{id}/seat:
+    patch:
+      operationId: seatReservation
+      tags: [Reservations]
+      summary: "Mark guest as seated (CONFIRMED → SEATED)"
+      parameters:
+        - $ref: '#/components/parameters/ReservationIdPath'
+      responses:
+        '200':
+          description: Seated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/reservations/{id}/complete:
+    patch:
+      operationId: completeReservation
+      tags: [Reservations]
+      summary: "Mark as completed (SEATED → COMPLETED)"
+      description: |
+        **Side effects:** `GuestProfile.totalVisits++`, `GuestProfile.lastVisitAt = now()`
+      parameters:
+        - $ref: '#/components/parameters/ReservationIdPath'
+      responses:
+        '200':
+          description: Completed
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/reservations/{id}/cancel:
+    patch:
+      operationId: cancelReservation
+      tags: [Reservations]
+      summary: "Cancel a reservation (any status → CANCELLED)"
+      parameters:
+        - $ref: '#/components/parameters/ReservationIdPath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, example: "Guest called to cancel" }
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/reservations/{id}/no-show:
+    patch:
+      operationId: markNoShow
+      tags: [Reservations]
+      summary: "Mark guest as no-show (CONFIRMED → NO_SHOW)"
+      description: |
+        **Roles:** `OWNER`, `MANAGER`
+        **Side effects:** `GuestProfile.noShowCount++`, `GuestProfile.guestScore` recalculated.
+      parameters:
+        - $ref: '#/components/parameters/ReservationIdPath'
+      responses:
+        '200':
+          description: No-show recorded
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/reservations/today:
+    get:
+      operationId: getTodaysReservations
+      tags: [Reservations]
+      summary: All reservations for today at a venue (dashboard widget)
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+      responses:
+        '200':
+          description: "Today's reservations sorted by time"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Reservation'
+
+  # ═══════════════════════════════════════
+  # D3: GUEST EVALUATIONS
+  # ═══════════════════════════════════════
+
+  /api/evaluations:
+    post:
+      operationId: createEvaluation
+      tags: [Guest Evaluations]
+      summary: Rate a guest after their visit (REVERSE RATING)
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        **Side effects:** `GuestProfile.guestScore` recalculated as average of all evaluations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvaluationRequest'
+      responses:
+        '201':
+          description: Evaluation created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestEvaluation'
+
+    get:
+      operationId: listEvaluations
+      tags: [Guest Evaluations]
+      summary: List evaluations (filterable by guest, venue, evaluator)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: guestProfileId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: evaluatedByUserId
+          in: query
+          schema: { type: integer, format: int64 }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated evaluations
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/guests/{guestId}/evaluations:
+    get:
+      operationId: getGuestEvaluations
+      tags: [Guest Evaluations]
+      summary: All evaluations for a specific guest
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Guest evaluations
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GuestEvaluation'
+
+  /api/guests/{guestId}/score:
+    get:
+      operationId: getGuestScore
+      tags: [Guest Evaluations]
+      summary: Calculated guest score breakdown
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF`'
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Guest score
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestScore'
+
+  # ═══════════════════════════════════════
+  # D4: GUEST CHECKS
+  # ═══════════════════════════════════════
+
+  /api/checks:
+    post:
+      operationId: openCheck
+      tags: [Guest Checks]
+      summary: Open a new guest check (start a tab for a table)
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        `servedByUserId` auto-set from JWT. `guestProfileId` & `reservationId` optional (walk-ins).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenCheckRequest'
+      responses:
+        '201':
+          description: Check opened
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestCheck'
+
+    get:
+      operationId: listChecks
+      tags: [Guest Checks]
+      summary: List guest checks (paginated, filterable)
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF` (own venue only)'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: shiftId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/GuestCheckStatus' }
+        - name: servedByUserId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: guestProfileId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated guest checks
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/checks/{id}:
+    get:
+      operationId: getCheck
+      tags: [Guest Checks]
+      summary: Get a single guest check with all line items
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPath'
+      responses:
+        '200':
+          description: Full guest check
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestCheckDetail'
+
+  /api/checks/open:
+    get:
+      operationId: getOpenChecks
+      tags: [Guest Checks]
+      summary: All currently open guest checks at a venue (live floor view)
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+      responses:
+        '200':
+          description: Open checks with table numbers and running totals
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GuestCheck'
+
+  /api/checks/{id}/close:
+    patch:
+      operationId: closeCheck
+      tags: [Guest Checks]
+      summary: Close a guest check — finalize transaction
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        **Validation:** Check must be OPEN with at least one item.
+        **Side effects:**
+        - `GuestProfile.recordVisit(totalAmount)` → updates totalVisits, totalSpend, averageSpend, lastVisitAt
+        - If `reservationId` → Reservation.status = COMPLETED
+        - For each GuestCheckItem → recipe ingredients → Product.consume(qty × item.quantity)
+        - Creates StockLog(MENU_DEPLETION, shiftId) for each consumed product
+        - WebSocket push for live dashboard
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseCheckRequest'
+      responses:
+        '200':
+          description: Check closed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestCheckClosed'
+
+  /api/checks/{id}/void:
+    patch:
+      operationId: voidCheck
+      tags: [Guest Checks]
+      summary: "Void an entire check — manager error correction (OPEN → VOID)"
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, example: "Wrong table number, guest moved" }
+      responses:
+        '200':
+          description: Check voided
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/checks/{id}/refund:
+    patch:
+      operationId: refundCheck
+      tags: [Guest Checks]
+      summary: "Refund a closed check (CLOSED → REFUNDED)"
+      description: |
+        **Roles:** `OWNER`, `MANAGER`
+        **Side effects:** Reverses GuestProfile.totalSpend and averageSpend.
+        Does NOT reverse inventory depletion (food was still consumed).
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, example: "Guest complaint — cold food" }
+      responses:
+        '200':
+          description: Check refunded
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/checks/{id}/discount:
+    patch:
+      operationId: applyDiscount
+      tags: [Guest Checks]
+      summary: Apply a discount to an open check
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [discountAmount]
+              properties:
+                discountAmount: { type: number, format: double, exclusiveMinimum: 0 }
+                reason: { type: string, example: "Birthday discount" }
+      responses:
+        '200':
+          description: Discount applied
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/checks/by-shift/{shiftId}:
+    get:
+      operationId: getChecksByShift
+      tags: [Guest Checks]
+      summary: All checks for a shift with revenue summary
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Shift checks with revenue summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ShiftRevenueSummary'
+
+  # ═══════════════════════════════════════
+  # D5: GUEST CHECK ITEMS
+  # ═══════════════════════════════════════
+
+  /api/checks/{checkId}/items:
+    post:
+      operationId: addCheckItem
+      tags: [Guest Check Items]
+      summary: Add an item to an open guest check
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        `unitPrice` auto-pulled from `MenuItem.price`. Check must be OPEN.
+        **Side effects:** Updates GuestCheck.subtotal and taxAmount.
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCheckItemRequest'
+      responses:
+        '201':
+          description: Item added
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestCheckItem'
+
+    get:
+      operationId: listCheckItems
+      tags: [Guest Check Items]
+      summary: List all items on a guest check
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPathAlt'
+      responses:
+        '200':
+          description: Check items
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GuestCheckItem'
+
+  /api/checks/{checkId}/items/{itemId}:
+    put:
+      operationId: updateCheckItem
+      tags: [Guest Check Items]
+      summary: Update item quantity, modifiers, or notes (OPEN checks only)
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPathAlt'
+        - $ref: '#/components/parameters/CheckItemIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCheckItemRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GuestCheckItem'
+
+    delete:
+      operationId: removeCheckItem
+      tags: [Guest Check Items]
+      summary: Remove an item from an open check
+      description: |
+        **Roles:** `OWNER`, `MANAGER`
+        **Side effects:** Recalculates GuestCheck.subtotal.
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPathAlt'
+        - $ref: '#/components/parameters/CheckItemIdPath'
+      responses:
+        '204':
+          description: Removed
+
+  /api/checks/{checkId}/items/{itemId}/served:
+    patch:
+      operationId: markItemServed
+      tags: [Guest Check Items]
+      summary: Mark an item as served (kitchen/bar fulfilled the order)
+      parameters:
+        - $ref: '#/components/parameters/CheckIdPathAlt'
+        - $ref: '#/components/parameters/CheckItemIdPath'
+      responses:
+        '200':
+          description: Served timestamp set
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+# ═══════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: '../shared/common-schemas.yaml#/components/securitySchemes/BearerAuth'
+
+  parameters:
+    GuestIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ReservationIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    CheckIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    CheckIdPathAlt:
+      name: checkId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    CheckItemIdPath:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  schemas:
+
+    # ── Enums ──
+    ReservationStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
+    GuestCheckStatus:
+      type: string
+      enum: [OPEN, CLOSED, VOID, REFUNDED]
+    PaymentMethod:
+      type: string
+      enum: [CASH, CARD, MOBILE_PAY, SPLIT, ON_HOUSE]
+
+    # ── Domain Models ──
+    GuestProfile:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        firstName: { type: string, example: Anna }
+        lastName: { type: string, example: Weber }
+        email: { type: string, format: email }
+        phone: { type: string, example: "+49 170 5555555" }
+        venueId: { type: integer, format: int64 }
+        totalVisits: { type: integer }
+        noShowCount: { type: integer }
+        totalSpend: { type: number, format: double }
+        averageSpend: { type: number, format: double }
+        guestScore: { type: number, format: double }
+        isVIP: { type: boolean }
+        isReliable: { type: boolean }
+        preferences:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastVisitAt: { type: string, format: date-time, nullable: true }
+
+    GuestHistory:
+      type: object
+      properties:
+        guestId: { type: integer, format: int64 }
+        guestName: { type: string }
+        recentReservations:
+          type: array
+          items: { $ref: '#/components/schemas/Reservation' }
+        recentChecks:
+          type: array
+          items: { $ref: '#/components/schemas/GuestCheck' }
+        evaluations:
+          type: array
+          items: { $ref: '#/components/schemas/GuestEvaluation' }
+        lifetimeValue: { type: number, format: double }
+        visitFrequency: { type: string, example: "1.5 visits/week" }
+
+    Reservation:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        guestProfileId: { type: integer, format: int64, nullable: true }
+        guestName: { type: string }
+        venueId: { type: integer, format: int64 }
+        reservationTime: { type: string, format: date-time }
+        partySize: { type: integer }
+        specialRequests: { type: string }
+        tablePreference: { type: string }
+        status: { $ref: '#/components/schemas/ReservationStatus' }
+        createdAt: { type: string, format: date-time }
+
+    ReservationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Reservation'
+        - type: object
+          properties:
+            guestProfile:
+              $ref: '#/components/schemas/GuestProfile'
+
+    GuestEvaluation:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        guestProfileId: { type: integer, format: int64 }
+        guestName: { type: string }
+        reservationId: { type: integer, format: int64, nullable: true }
+        evaluatedByUserId: { type: integer, format: int64 }
+        evaluatedByName: { type: string }
+        behaviorRating: { type: integer, minimum: 1, maximum: 5 }
+        punctualityRating: { type: integer, minimum: 1, maximum: 5 }
+        overallRating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    GuestScore:
+      type: object
+      properties:
+        guestId: { type: integer, format: int64 }
+        guestName: { type: string }
+        overallScore: { type: number, format: double }
+        averageBehavior: { type: number, format: double }
+        averagePunctuality: { type: number, format: double }
+        averageOverall: { type: number, format: double }
+        totalEvaluations: { type: integer }
+        noShowCount: { type: integer }
+        isReliable: { type: boolean }
+        isVIP: { type: boolean }
+
+    GuestCheck:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        venueId: { type: integer, format: int64 }
+        shiftId: { type: integer, format: int64 }
+        servedByUserId: { type: integer, format: int64 }
+        servedByName: { type: string }
+        guestProfileId: { type: integer, format: int64, nullable: true }
+        guestName: { type: string, nullable: true }
+        reservationId: { type: integer, format: int64, nullable: true }
+        tableNumber: { type: string }
+        guestCount: { type: integer }
+        status: { $ref: '#/components/schemas/GuestCheckStatus' }
+        subtotal: { type: number, format: double }
+        taxAmount: { type: number, format: double }
+        tipAmount: { type: number, format: double }
+        discountAmount: { type: number, format: double }
+        totalAmount: { type: number, format: double }
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+
+    GuestCheckDetail:
+      allOf:
+        - $ref: '#/components/schemas/GuestCheck'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/GuestCheckItem'
+
+    GuestCheckClosed:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, example: CLOSED }
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        subtotal: { type: number, format: double }
+        taxAmount: { type: number, format: double }
+        tipAmount: { type: number, format: double }
+        discountAmount: { type: number, format: double }
+        totalAmount: { type: number, format: double }
+        closedAt: { type: string, format: date-time }
+
+    GuestCheckItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        guestCheckId: { type: integer, format: int64 }
+        menuItemId: { type: integer, format: int64 }
+        menuItemName: { type: string }
+        quantity: { type: integer }
+        unitPrice: { type: number, format: double }
+        lineTotal: { type: number, format: double }
+        modifiers: { type: string }
+        notes: { type: string }
+        orderedAt: { type: string, format: date-time }
+        servedAt: { type: string, format: date-time, nullable: true }
+
+    ShiftRevenueSummary:
+      type: object
+      properties:
+        shiftId: { type: integer, format: int64 }
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestCheck'
+        summary:
+          type: object
+          properties:
+            totalChecks: { type: integer }
+            totalRevenue: { type: number, format: double }
+            averageCheckSize: { type: number, format: double }
+            totalTips: { type: number, format: double }
+            paymentBreakdown:
+              type: object
+              additionalProperties:
+                type: number
+                format: double
+
+    # ── Request Schemas ──
+    CreateGuestRequest:
+      type: object
+      required: [firstName, lastName, venueId]
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        venueId: { type: integer, format: int64 }
+        preferences:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+
+    CreateReservationRequest:
+      type: object
+      required: [venueId, reservationTime, partySize]
+      properties:
+        guestProfileId: { type: integer, format: int64 }
+        venueId: { type: integer, format: int64 }
+        reservationTime: { type: string, format: date-time }
+        partySize: { type: integer, minimum: 1 }
+        specialRequests: { type: string }
+        tablePreference: { type: string }
+
+    CreateEvaluationRequest:
+      type: object
+      required: [guestProfileId, behaviorRating, punctualityRating, overallRating]
+      properties:
+        guestProfileId: { type: integer, format: int64 }
+        reservationId: { type: integer, format: int64 }
+        behaviorRating: { type: integer, minimum: 1, maximum: 5 }
+        punctualityRating: { type: integer, minimum: 1, maximum: 5 }
+        overallRating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+
+    OpenCheckRequest:
+      type: object
+      required: [venueId, shiftId, tableNumber, guestCount]
+      properties:
+        venueId: { type: integer, format: int64 }
+        shiftId: { type: integer, format: int64 }
+        tableNumber: { type: string }
+        guestCount: { type: integer, minimum: 1 }
+        guestProfileId: { type: integer, format: int64 }
+        reservationId: { type: integer, format: int64 }
+        notes: { type: string }
+
+    CloseCheckRequest:
+      type: object
+      required: [paymentMethod]
+      properties:
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        tipAmount: { type: number, format: double, default: 0 }
+        discountAmount: { type: number, format: double, default: 0 }
+
+    AddCheckItemRequest:
+      type: object
+      required: [menuItemId, quantity]
+      properties:
+        menuItemId: { type: integer, format: int64 }
+        quantity: { type: integer, minimum: 1 }
+        modifiers: { type: string }
+        notes: { type: string }

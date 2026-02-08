@@ -1,0 +1,521 @@
+openapi: 3.1.0
+info:
+  title: KesselOps — AI Configuration API (Service F)
+  description: |
+    Prompt template management, AI generation orchestration, and usage logging.
+    This is the configurable AI brain of KesselOps — powered by Spring AI.
+
+    **Package:** `com.kesselops.ai`
+
+    **Models:**
+    - **Primary:** Anthropic Claude 3.5 Sonnet (text generation)
+    - **Fallback:** OpenAI GPT-4o (vision tasks, fallback text)
+
+    **Cross-domain calls received (this service is the AI gateway):**
+    - ← Social: `AIOrchestrationService.generate(SOCIAL_POST, vars)` (post generation)
+    - ← Social: `AIOrchestrationService.generate(REVIEW_RESPONSE, vars)` (review responses)
+    - ← Social: `AIOrchestrationService.suggestHashtags(content)` (hashtags)
+    - ← Menu: `AIOrchestrationService.generate(MENU_DESCRIPTION, vars)` (menu descriptions)
+    - ← Operations: `AIOrchestrationService.generate(ONBOARDING_GUIDE, vars)` (training)
+    - ← Guest: `AIOrchestrationService.generate(inline, guestData)` (guest insight)
+
+    **Internal flow (on each generate call):**
+    1. Load `PromptTemplate` by venueId + category
+    2. Render `systemPrompt` and `userPromptTemplate` with variables
+    3. Apply overrides if provided
+    4. Call LLM (Claude or GPT based on category)
+    5. Log to `AIUsageLog`
+    6. Return generated content
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.kesselops.railway.app
+    description: Production
+
+tags:
+  - name: Prompt Templates
+    description: Manage AI personality configurations per venue
+  - name: AI Generation
+    description: Unified AI generation gateway
+  - name: AI Usage Logs
+    description: Audit trail and cost tracking for all AI interactions
+
+security:
+  - BearerAuth: []
+
+paths:
+
+  # ═══════════════════════════════════════
+  # F1: PROMPT TEMPLATES
+  # ═══════════════════════════════════════
+
+  /api/prompts:
+    post:
+      operationId: createPromptTemplate
+      tags: [Prompt Templates]
+      summary: Create a new prompt template
+      description: '**Roles:** `OWNER`. `venueId` null → global template.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
+      responses:
+        '201':
+          description: Prompt template created with version 1
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PromptTemplate'
+
+    get:
+      operationId: listPromptTemplates
+      tags: [Prompt Templates]
+      summary: List all prompt templates (filterable by venue and category)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: venueId
+          in: query
+          schema: { type: integer, format: int64 }
+          description: Filter by venue (null = global templates)
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/PromptCategory' }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Prompt templates
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PromptTemplate'
+
+  /api/prompts/{id}:
+    get:
+      operationId: getPromptTemplate
+      tags: [Prompt Templates]
+      summary: Get a single prompt template
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/PromptIdPath'
+      responses:
+        '200':
+          description: Prompt template
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PromptTemplate'
+
+    put:
+      operationId: updatePromptTemplate
+      tags: [Prompt Templates]
+      summary: Update a prompt template (auto-increments version)
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/PromptIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
+      responses:
+        '200':
+          description: Updated with incremented version
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PromptTemplate'
+
+    delete:
+      operationId: deletePromptTemplate
+      tags: [Prompt Templates]
+      summary: Delete a prompt template
+      description: |
+        **Roles:** `OWNER`
+        Cannot delete if it's the only active template for its category.
+      parameters:
+        - $ref: '#/components/parameters/PromptIdPath'
+      responses:
+        '204':
+          description: Deleted
+        '409':
+          description: Cannot delete — last active template for category
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+  /api/prompts/venue/{venueId}/category/{category}:
+    get:
+      operationId: getActivePromptForVenueCategory
+      tags: [Prompt Templates]
+      summary: Get active prompt for a venue + category (with global fallback)
+      description: |
+        Returns the venue-specific active template. Falls back to global template
+        if no venue-specific one exists.
+        **Roles:** `OWNER`, `MANAGER` (or internal service call)
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: category
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/PromptCategory' }
+      responses:
+        '200':
+          description: Active prompt template
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PromptTemplate'
+
+  /api/prompts/{id}/activate:
+    patch:
+      operationId: activatePrompt
+      tags: [Prompt Templates]
+      summary: Activate a prompt template
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/PromptIdPath'
+      responses:
+        '200':
+          description: Activated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/prompts/{id}/deactivate:
+    patch:
+      operationId: deactivatePrompt
+      tags: [Prompt Templates]
+      summary: Deactivate a prompt template
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/PromptIdPath'
+      responses:
+        '200':
+          description: Deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  # ═══════════════════════════════════════
+  # F2: AI GENERATION (ORCHESTRATION)
+  # ═══════════════════════════════════════
+
+  /api/ai/generate:
+    post:
+      operationId: generateContent
+      tags: [AI Generation]
+      summary: General-purpose AI generation endpoint
+      description: |
+        Unified AI generation gateway. Used by other services internally and
+        can be called directly for ad-hoc generation.
+        **Roles:** `OWNER`, `MANAGER`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+      responses:
+        '200':
+          description: AI-generated content with usage metadata
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GenerateResponse'
+
+  /api/ai/generate/batch:
+    post:
+      operationId: generateBatch
+      tags: [AI Generation]
+      summary: Generate multiple AI outputs in one call
+      description: |
+        E.g., generate social posts for all platforms at once.
+        **Roles:** `OWNER`, `MANAGER`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchGenerateRequest'
+      responses:
+        '200':
+          description: Array of generated content, one per platform
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GenerateResponse'
+
+  # ═══════════════════════════════════════
+  # F3: AI USAGE LOGS
+  # ═══════════════════════════════════════
+
+  /api/ai/usage:
+    get:
+      operationId: listAIUsageLogs
+      tags: [AI Usage Logs]
+      summary: List AI usage logs (paginated, filterable)
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - name: venueId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: promptTemplateId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: modelUsed
+          in: query
+          schema: { type: string }
+          description: "Filter by model (e.g., `claude-3-5-sonnet`)"
+        - name: userId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated usage logs
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/ai/usage/stats:
+    get:
+      operationId: getAIUsageStats
+      tags: [AI Usage Logs]
+      summary: Aggregated AI usage statistics (tokens, cost, acceptance rate)
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - name: venueId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AIUsageStats'
+
+  /api/ai/usage/{id}/feedback:
+    patch:
+      operationId: recordFeedback
+      tags: [AI Usage Logs]
+      summary: Record whether AI-generated content was accepted or rejected
+      description: Any authenticated user.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wasAccepted]
+              properties:
+                wasAccepted: { type: boolean }
+      responses:
+        '200':
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+# ═══════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: '../shared/common-schemas.yaml#/components/securitySchemes/BearerAuth'
+
+  parameters:
+    PromptIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  schemas:
+
+    # ── Enums ──
+    PromptCategory:
+      type: string
+      enum: [SOCIAL_POST, REVIEW_RESPONSE, ONBOARDING_GUIDE, MENU_DESCRIPTION, SHIFT_SUMMARY]
+
+    # ── Domain Models ──
+    PromptTemplate:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        venueId: { type: integer, format: int64, nullable: true, description: "null = global template" }
+        name: { type: string, example: "OSCHO Instagram Voice" }
+        systemPrompt:
+          type: string
+          example: "Du bist der Social Media Manager von OSCHO, einem Café & Bar in Stuttgart."
+        userPromptTemplate:
+          type: string
+          example: "Erstelle einen Instagram Post basierend auf: Schicht: {shiftType}, Datum: {date}"
+        category: { $ref: '#/components/schemas/PromptCategory' }
+        toneOfVoice: { type: string, example: "casual, urban, witty" }
+        language: { type: string, example: de }
+        isActive: { type: boolean }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    GenerateResponse:
+      type: object
+      properties:
+        generatedContent: { type: string }
+        promptTemplateId: { type: integer, format: int64 }
+        promptTemplateVersion: { type: integer }
+        modelUsed: { type: string, example: claude-3-5-sonnet }
+        inputTokens: { type: integer }
+        outputTokens: { type: integer }
+        latencyMs: { type: integer }
+        usageLogId: { type: integer, format: int64 }
+
+    AIUsageStats:
+      type: object
+      properties:
+        totalCalls: { type: integer }
+        totalInputTokens: { type: integer }
+        totalOutputTokens: { type: integer }
+        estimatedCostUSD: { type: number, format: double }
+        averageLatencyMs: { type: integer }
+        acceptanceRate: { type: number, format: double }
+        byCategory:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              calls: { type: integer }
+              accepted: { type: integer }
+        byModel:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              calls: { type: integer }
+              tokens: { type: integer }
+
+    # ── Request Schemas ──
+    CreatePromptRequest:
+      type: object
+      required: [name, systemPrompt, userPromptTemplate, category]
+      properties:
+        venueId: { type: integer, format: int64, nullable: true }
+        name: { type: string }
+        systemPrompt: { type: string }
+        userPromptTemplate: { type: string }
+        category: { $ref: '#/components/schemas/PromptCategory' }
+        toneOfVoice: { type: string }
+        language: { type: string, default: de }
+        isActive: { type: boolean, default: true }
+
+    GenerateRequest:
+      type: object
+      required: [venueId, category, variables]
+      properties:
+        venueId: { type: integer, format: int64 }
+        category: { $ref: '#/components/schemas/PromptCategory' }
+        variables:
+          type: object
+          additionalProperties: { type: string }
+          example:
+            shiftType: EVENING
+            date: "2026-02-09"
+            highlights: "New cocktail menu launch, 2 birthday parties"
+        overrides:
+          type: object
+          properties:
+            toneOfVoice: { type: string }
+            language: { type: string }
+
+    BatchGenerateRequest:
+      type: object
+      required: [venueId, category, variables, platforms]
+      properties:
+        venueId: { type: integer, format: int64 }
+        category: { $ref: '#/components/schemas/PromptCategory' }
+        variables:
+          type: object
+          additionalProperties: { type: string }
+        platforms:
+          type: array
+          items: { type: string }
+          example: [INSTAGRAM, FACEBOOK, TIKTOK]

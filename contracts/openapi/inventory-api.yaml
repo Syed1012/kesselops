@@ -1,0 +1,1290 @@
+openapi: 3.1.0
+info:
+  title: KesselOps — Inventory & Prediction API (Service B)
+  description: |
+    Inventory management, supplier relationships, purchase orders, stock tracking,
+    and AI-powered predictions (stock levels, staffing, consumption trends).
+
+    **Package:** `com.kesselops.inventory`
+
+    **Cross-domain calls made by this service:**
+    - → Guest: `ReservationService.countByDate(venueId, date)` (staffing predictions)
+    - → Operations: `ShiftService.getHistoricalShiftData(venueId)` (staffing predictions)
+    - → WebSocket: `push(STOCK_UPDATE, productId, qty)` (real-time dashboard)
+
+    **Cross-domain calls received:**
+    - ← Guest: `ProductService.consume(productId, qty)` (menu depletion on check close)
+    - ← Operations: `ProductService.getLowStockCount(venueId)` (dashboard)
+
+    **External integrations:**
+    - Open-Meteo API (weather forecast — free, no API key)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.kesselops.railway.app
+    description: Production
+
+tags:
+  - name: Products
+    description: Inventory product catalog — what you STOCK
+  - name: Suppliers
+    description: Supplier management (UNIBEV, meincocktailfass, etc.)
+  - name: Supplier Products
+    description: Which products each supplier offers, with pricing & lead times
+  - name: Stock Logs
+    description: Immutable audit trail of every stock change
+  - name: Orders
+    description: Supplier purchase orders — money OUT
+  - name: Order Items
+    description: Line items within purchase orders
+  - name: Predictions
+    description: AI/ML-powered stock, staffing, and consumption predictions
+  - name: Weather
+    description: Weather forecast for venue location
+
+security:
+  - BearerAuth: []
+
+paths:
+
+  # ═══════════════════════════════════════
+  # B1: PRODUCTS
+  # ═══════════════════════════════════════
+
+  /api/products:
+    post:
+      operationId: createProduct
+      tags: [Products]
+      summary: Add a new product to inventory
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
+        '409':
+          description: SKU already exists in venue
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+    get:
+      operationId: listProducts
+      tags: [Products]
+      summary: List all products (paginated, filterable)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/ProductCategory' }
+        - name: isActive
+          in: query
+          schema: { type: boolean, default: true }
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Search by name or SKU
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/products/{id}:
+    get:
+      operationId: getProduct
+      tags: [Products]
+      summary: Get a single product
+      parameters:
+        - $ref: '#/components/parameters/ProductIdPath'
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+    put:
+      operationId: updateProduct
+      tags: [Products]
+      summary: Update product details
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ProductIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '200':
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+  /api/products/{id}/deactivate:
+    patch:
+      operationId: deactivateProduct
+      tags: [Products]
+      summary: Soft-deactivate a product
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ProductIdPath'
+      responses:
+        '200':
+          description: Product deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/products/low-stock:
+    get:
+      operationId: getLowStockProducts
+      tags: [Products]
+      summary: Products where currentQuantity ≤ reorderLevel
+      description: Includes AI-predicted `daysUntilStockout`.
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+      responses:
+        '200':
+          description: Low stock products
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LowStockProduct'
+
+  /api/products/{id}/consume:
+    post:
+      operationId: consumeProduct
+      tags: [Products]
+      summary: Log manual consumption (creates StockLog CONSUMPTION)
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        **Side effects:** Creates StockLog, WebSocket push if below reorder level
+      parameters:
+        - $ref: '#/components/parameters/ProductIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockChangeRequest'
+      responses:
+        '200':
+          description: Product consumed, updated quantity returned
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+  /api/products/{id}/restock:
+    post:
+      operationId: restockProduct
+      tags: [Products]
+      summary: Log a restock (creates StockLog RESTOCK)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ProductIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockChangeRequest'
+      responses:
+        '200':
+          description: Product restocked
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+  /api/products/{id}/waste:
+    post:
+      operationId: wasteProduct
+      tags: [Products]
+      summary: Log waste/breakage (creates StockLog WASTE)
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF`'
+      parameters:
+        - $ref: '#/components/parameters/ProductIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockChangeRequest'
+      responses:
+        '200':
+          description: Waste logged
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+  /api/products/{productId}/suppliers:
+    get:
+      operationId: getProductSuppliers
+      tags: [Supplier Products]
+      summary: All suppliers who offer this product (reverse lookup)
+      description: Sorted by `supplierPrice asc` — find cheapest supplier.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Supplier product list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SupplierProduct'
+
+  # ═══════════════════════════════════════
+  # B2: SUPPLIERS
+  # ═══════════════════════════════════════
+
+  /api/suppliers:
+    post:
+      operationId: createSupplier
+      tags: [Suppliers]
+      summary: Add a new supplier
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplierRequest'
+      responses:
+        '201':
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Supplier'
+
+    get:
+      operationId: listSuppliers
+      tags: [Suppliers]
+      summary: List all suppliers
+      parameters:
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/SupplierType' }
+        - name: isPreferred
+          in: query
+          schema: { type: boolean }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Supplier list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Supplier'
+
+  /api/suppliers/{id}:
+    get:
+      operationId: getSupplier
+      tags: [Suppliers]
+      summary: Get supplier with products
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPath'
+      responses:
+        '200':
+          description: Supplier with products
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupplierDetail'
+
+    put:
+      operationId: updateSupplier
+      tags: [Suppliers]
+      summary: Update supplier details
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplierRequest'
+      responses:
+        '200':
+          description: Updated supplier
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Supplier'
+
+    delete:
+      operationId: deleteSupplier
+      tags: [Suppliers]
+      summary: Delete supplier (fails if open orders exist)
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPath'
+      responses:
+        '204':
+          description: Deleted
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+  # ═══════════════════════════════════════
+  # B3: SUPPLIER PRODUCTS
+  # ═══════════════════════════════════════
+
+  /api/suppliers/{supplierId}/products:
+    post:
+      operationId: linkSupplierProduct
+      tags: [Supplier Products]
+      summary: Link a product to a supplier with pricing
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplierProductRequest'
+      responses:
+        '201':
+          description: Product linked
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupplierProduct'
+
+    get:
+      operationId: listSupplierProducts
+      tags: [Supplier Products]
+      summary: List all products this supplier offers
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPathAlt'
+      responses:
+        '200':
+          description: Supplier products
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SupplierProduct'
+
+  /api/suppliers/{supplierId}/products/{supplierProductId}:
+    put:
+      operationId: updateSupplierProduct
+      tags: [Supplier Products]
+      summary: Update supplier pricing, lead time, or min order qty
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPathAlt'
+        - $ref: '#/components/parameters/SupplierProductIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplierProductRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SupplierProduct'
+
+    delete:
+      operationId: unlinkSupplierProduct
+      tags: [Supplier Products]
+      summary: Unlink product from supplier
+      parameters:
+        - $ref: '#/components/parameters/SupplierIdPathAlt'
+        - $ref: '#/components/parameters/SupplierProductIdPath'
+      responses:
+        '204':
+          description: Unlinked
+
+  # ═══════════════════════════════════════
+  # B4: STOCK LOGS
+  # ═══════════════════════════════════════
+
+  /api/stock-logs:
+    get:
+      operationId: listStockLogs
+      tags: [Stock Logs]
+      summary: List stock log events (immutable audit trail)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: productId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/StockLogType' }
+        - name: shiftId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated stock logs
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/stock-logs/by-shift/{shiftId}:
+    get:
+      operationId: getStockLogsByShift
+      tags: [Stock Logs]
+      summary: All stock movements during a shift
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Stock logs for shift
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StockLog'
+
+  /api/stock-logs/waste-summary:
+    get:
+      operationId: getWasteSummary
+      tags: [Stock Logs]
+      summary: Waste analytics — total waste per product over date range
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Waste summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WasteSummary'
+
+  # ═══════════════════════════════════════
+  # B5: ORDERS
+  # ═══════════════════════════════════════
+
+  /api/orders:
+    post:
+      operationId: createOrder
+      tags: [Orders]
+      summary: Create a supplier purchase order (starts as DRAFT)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderDetail'
+
+    get:
+      operationId: listOrders
+      tags: [Orders]
+      summary: List orders (paginated, filterable)
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: supplierId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/OrderStatus' }
+        - name: isAutoGenerated
+          in: query
+          schema: { type: boolean }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated order list
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [Orders]
+      summary: Get order with all line items
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPath'
+      responses:
+        '200':
+          description: Full order
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderDetail'
+
+  /api/orders/{id}/submit:
+    patch:
+      operationId: submitOrder
+      tags: [Orders]
+      summary: Submit order to supplier (DRAFT → SUBMITTED)
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPath'
+      responses:
+        '200':
+          description: Order submitted
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+        '422':
+          $ref: '../shared/common-schemas.yaml#/components/responses/UnprocessableEntity'
+
+  /api/orders/{id}/confirm:
+    patch:
+      operationId: confirmOrder
+      tags: [Orders]
+      summary: Mark as confirmed by supplier (SUBMITTED → CONFIRMED)
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPath'
+      responses:
+        '200':
+          description: Order confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/orders/{id}/deliver:
+    patch:
+      operationId: deliverOrder
+      tags: [Orders]
+      summary: Mark as delivered — auto-restocks products
+      description: |
+        Changes status CONFIRMED → DELIVERED.
+        **Side effects:** For each OrderItem, calls `ProductService.restock(productId, qty)`,
+        creates `StockLog(RESTOCK)` for each item.
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actualDelivery:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Order delivered, products restocked
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/orders/{id}/cancel:
+    patch:
+      operationId: cancelOrder
+      tags: [Orders]
+      summary: Cancel order (only DRAFT or SUBMITTED)
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPath'
+      responses:
+        '200':
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+        '422':
+          $ref: '../shared/common-schemas.yaml#/components/responses/UnprocessableEntity'
+
+  # ═══════════════════════════════════════
+  # B6: ORDER ITEMS
+  # ═══════════════════════════════════════
+
+  /api/orders/{orderId}/items:
+    post:
+      operationId: addOrderItem
+      tags: [Order Items]
+      summary: Add line item to draft order
+      description: Order must be in DRAFT status.
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderItemRequest'
+      responses:
+        '201':
+          description: Item added
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderItem'
+
+  /api/orders/{orderId}/items/{itemId}:
+    put:
+      operationId: updateOrderItem
+      tags: [Order Items]
+      summary: Update quantity or price (DRAFT only)
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPathAlt'
+        - $ref: '#/components/parameters/OrderItemIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderItemRequest'
+      responses:
+        '200':
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderItem'
+
+    delete:
+      operationId: removeOrderItem
+      tags: [Order Items]
+      summary: Remove line item from draft order
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPathAlt'
+        - $ref: '#/components/parameters/OrderItemIdPath'
+      responses:
+        '204':
+          description: Removed
+
+  # ═══════════════════════════════════════
+  # B7: PREDICTIONS & WEATHER
+  # ═══════════════════════════════════════
+
+  /api/predictions/stock/{productId}:
+    get:
+      operationId: getStockPrediction
+      tags: [Predictions]
+      summary: Stock prediction for a product
+      description: Predicted daily usage, days until stockout, recommended order qty.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Stock prediction
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StockPrediction'
+
+  /api/predictions/stock:
+    get:
+      operationId: getAllStockPredictions
+      tags: [Predictions]
+      summary: Stock predictions for ALL products at a venue
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+      responses:
+        '200':
+          description: All stock predictions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StockPrediction'
+
+  /api/predictions/suggest-order:
+    post:
+      operationId: suggestOrder
+      tags: [Predictions]
+      summary: AI-generated draft order for low-stock products
+      description: |
+        Creates an Order in DRAFT with `isAutoGenerated: true`, pre-filled with
+        optimal quantities and cheapest suppliers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [venueId]
+              properties:
+                venueId:
+                  type: integer
+                  format: int64
+      responses:
+        '201':
+          description: Auto-generated draft order
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderDetail'
+
+  /api/predictions/staffing:
+    get:
+      operationId: getStaffingSuggestion
+      tags: [Predictions]
+      summary: AI-suggested staffing levels for upcoming shifts
+      description: |
+        Cross-domain calls:
+        - → Weather: `getForecast(date)`
+        - → Guest: `ReservationService.countByDate(venueId, date)`
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+          description: Target date (default tomorrow)
+      responses:
+        '200':
+          description: Staffing suggestion
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StaffingSuggestion'
+
+  /api/predictions/consumption/{productId}:
+    get:
+      operationId: getConsumptionTrend
+      tags: [Predictions]
+      summary: Consumption trend analysis for a product
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: days
+          in: query
+          schema: { type: integer, default: 30 }
+          description: Analysis window in days
+      responses:
+        '200':
+          description: Consumption trend
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ConsumptionTrend'
+
+  /api/weather/forecast:
+    get:
+      operationId: getWeatherForecast
+      tags: [Weather]
+      summary: Weather forecast for venue location
+      description: 'Uses Open-Meteo API (free, no API key).'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: days
+          in: query
+          schema: { type: integer, default: 7, maximum: 14 }
+      responses:
+        '200':
+          description: Weather forecast
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WeatherDay'
+
+# ═══════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: '../shared/common-schemas.yaml#/components/securitySchemes/BearerAuth'
+
+  parameters:
+    ProductIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    SupplierIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    SupplierIdPathAlt:
+      name: supplierId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    SupplierProductIdPath:
+      name: supplierProductId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    OrderIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    OrderIdPathAlt:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    OrderItemIdPath:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  schemas:
+
+    # ── Enums ──
+    ProductCategory:
+      type: string
+      enum: [SPIRITS, WINE, BEER, COCKTAIL_KEG, SOFT_DRINKS, BOTANICAL_BOOSTER, FOOD_INGREDIENT, CONSUMABLE]
+    SupplierType:
+      type: string
+      enum: [BEVERAGE_DISTRIBUTOR, FOOD_WHOLESALER, COCKTAIL_KEG_PROVIDER, CONSUMABLE_SUPPLIER]
+    StockLogType:
+      type: string
+      enum: [CONSUMPTION, RESTOCK, ADJUSTMENT, WASTE, MENU_DEPLETION]
+    OrderStatus:
+      type: string
+      enum: [DRAFT, SUBMITTED, CONFIRMED, DELIVERED, CANCELLED]
+
+    # ── Domain Models ──
+    Product:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, example: "Hendrick's Gin 700ml" }
+        sku: { type: string, example: GIN-HEND-700 }
+        category: { $ref: '#/components/schemas/ProductCategory' }
+        unit: { type: string, example: bottle }
+        currentQuantity: { type: number, format: double, example: 12.0 }
+        reorderLevel: { type: number, format: double, example: 3.0 }
+        reorderQuantity: { type: number, format: double, example: 6.0 }
+        unitPrice: { type: number, format: double, example: 28.50 }
+        venueId: { type: integer, format: int64 }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    LowStockProduct:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          properties:
+            daysUntilStockout:
+              type: integer
+              description: AI-predicted days until stockout
+              example: 3
+
+    Supplier:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, example: UNIBEV GmbH }
+        contactPerson: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        address: { type: string }
+        type: { $ref: '#/components/schemas/SupplierType' }
+        isPreferred: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    SupplierDetail:
+      allOf:
+        - $ref: '#/components/schemas/Supplier'
+        - type: object
+          properties:
+            supplierProducts:
+              type: array
+              items:
+                $ref: '#/components/schemas/SupplierProduct'
+
+    SupplierProduct:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        supplierId: { type: integer, format: int64 }
+        supplierName: { type: string }
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        supplierPrice: { type: number, format: double }
+        supplierSku: { type: string }
+        leadTimeDays: { type: integer }
+        minimumOrderQty: { type: number, format: double }
+
+    StockLog:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        type: { $ref: '#/components/schemas/StockLogType' }
+        quantityChange: { type: number, format: double }
+        previousQuantity: { type: number, format: double }
+        newQuantity: { type: number, format: double }
+        reason: { type: string }
+        shiftId: { type: integer, format: int64, nullable: true }
+        userId: { type: integer, format: int64 }
+        timestamp: { type: string, format: date-time }
+
+    WasteSummary:
+      type: object
+      properties:
+        totalWasteValue: { type: number, format: double }
+        wasteRatio: { type: number, format: double }
+        byProduct:
+          type: array
+          items:
+            type: object
+            properties:
+              productId: { type: integer, format: int64 }
+              productName: { type: string }
+              wastedQty: { type: number, format: double }
+              unit: { type: string }
+              wasteValue: { type: number, format: double }
+
+    OrderDetail:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        supplierId: { type: integer, format: int64 }
+        supplierName: { type: string }
+        venueId: { type: integer, format: int64 }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        totalAmount: { type: number, format: double }
+        isAutoGenerated: { type: boolean }
+        expectedDelivery: { type: string, format: date-time, nullable: true }
+        actualDelivery: { type: string, format: date-time, nullable: true }
+        notes: { type: string }
+        createdAt: { type: string, format: date-time }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+
+    OrderItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        quantity: { type: number, format: double }
+        unitPrice: { type: number, format: double }
+        subtotal: { type: number, format: double }
+
+    StockPrediction:
+      type: object
+      properties:
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        currentQuantity: { type: number, format: double }
+        predictedDailyUsage: { type: number, format: double }
+        daysUntilStockout: { type: integer }
+        recommendedOrderQty: { type: number, format: double }
+        confidenceScore: { type: number, format: double }
+
+    StaffingSuggestion:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        weather:
+          type: object
+          properties:
+            temperatureCelsius: { type: number, format: double }
+            condition: { type: string }
+        reservationCount: { type: integer }
+        suggestions:
+          type: array
+          items:
+            type: object
+            properties:
+              shiftType: { type: string }
+              suggestedStaff: { type: integer }
+              reason: { type: string }
+        confidenceScore: { type: number, format: double }
+
+    ConsumptionTrend:
+      type: object
+      properties:
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        averageDailyUsage: { type: number, format: double }
+        peakUsage: { type: number, format: double }
+        peakDay: { type: string }
+        weekOverWeekChange: { type: number, format: double }
+        trendDirection: { type: string, enum: [UP, DOWN, STABLE] }
+
+    WeatherDay:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        temperatureCelsius: { type: number, format: double }
+        condition: { type: string, enum: [SUNNY, CLOUDY, RAINY, SNOWY, STORMY] }
+        precipitationMm: { type: number, format: double }
+
+    # ── Request Schemas ──
+    CreateProductRequest:
+      type: object
+      required: [name, sku, category, unit, currentQuantity, reorderLevel, reorderQuantity, unitPrice, venueId]
+      properties:
+        name: { type: string }
+        sku: { type: string }
+        category: { $ref: '#/components/schemas/ProductCategory' }
+        unit: { type: string }
+        currentQuantity: { type: number, format: double, minimum: 0 }
+        reorderLevel: { type: number, format: double, minimum: 0 }
+        reorderQuantity: { type: number, format: double, minimum: 0 }
+        unitPrice: { type: number, format: double, exclusiveMinimum: 0 }
+        venueId: { type: integer, format: int64 }
+
+    StockChangeRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: number, format: double, exclusiveMinimum: 0 }
+        reason: { type: string }
+        shiftId: { type: integer, format: int64 }
+
+    CreateSupplierRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name: { type: string }
+        contactPerson: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        address: { type: string }
+        type: { $ref: '#/components/schemas/SupplierType' }
+        isPreferred: { type: boolean, default: false }
+
+    CreateSupplierProductRequest:
+      type: object
+      required: [productId, supplierPrice]
+      properties:
+        productId: { type: integer, format: int64 }
+        supplierPrice: { type: number, format: double }
+        supplierSku: { type: string }
+        leadTimeDays: { type: integer }
+        minimumOrderQty: { type: number, format: double }
+
+    CreateOrderRequest:
+      type: object
+      required: [supplierId, venueId, items]
+      properties:
+        supplierId: { type: integer, format: int64 }
+        venueId: { type: integer, format: int64 }
+        expectedDelivery: { type: string, format: date-time }
+        notes: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateOrderItemRequest'
+
+    CreateOrderItemRequest:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        productId: { type: integer, format: int64 }
+        quantity: { type: number, format: double, exclusiveMinimum: 0 }
+        unitPrice: { type: number, format: double, exclusiveMinimum: 0 }

@@ -1,0 +1,378 @@
+asyncapi: 3.0.0
+info:
+  title: KesselOps — WebSocket Events
+  description: |
+    Real-time event streams for the KesselOps live dashboard.
+    Uses STOMP over WebSocket for pub/sub messaging.
+
+    **Authentication:** JWT token passed as query parameter.
+    **Connection URL:** `ws://localhost:8080/ws?token=<JWT>`
+
+    **Architecture:** Spring Boot WebSocket + SimpMessagingTemplate → STOMP topics.
+    All topics are venue-scoped to ensure data isolation.
+
+    **Publishers (server-side):**
+    - `ProductService` → stock-updates, low-stock-alerts
+    - `GuestCheckService` → checks
+    - `ShiftService`, `ChecklistService` → shift-updates
+    - `ReservationService` → reservations
+  version: 1.0.0
+
+defaultContentType: application/json
+
+servers:
+  localDev:
+    host: localhost:8080
+    pathname: /ws
+    protocol: stomp
+    protocolVersion: '1.2'
+    description: Local STOMP over WebSocket (connect with ?token=<JWT>)
+    security:
+      - $ref: '#/components/securitySchemes/jwtQueryParam'
+  production:
+    host: api.kesselops.railway.app
+    pathname: /ws
+    protocol: stomp
+    protocolVersion: '1.2'
+    description: Production STOMP over WebSocket
+    security:
+      - $ref: '#/components/securitySchemes/jwtQueryParam'
+
+channels:
+  stockUpdates:
+    address: /topic/venue/{venueId}/stock-updates
+    title: Stock Level Changes
+    description: |
+      Real-time stock level changes. Published whenever a product is consumed,
+      restocked, wasted, or auto-depleted via menu order (MENU_DEPLETION).
+      Dashboard uses this to keep inventory widget live.
+    parameters:
+      venueId:
+        description: The venue ID to scope events to
+        location: $message.payload#/venueId
+    messages:
+      stockUpdate:
+        $ref: '#/components/messages/StockUpdateMessage'
+
+  checks:
+    address: /topic/venue/{venueId}/checks
+    title: Guest Check Events
+    description: |
+      Guest check lifecycle events — opened, closed, voided.
+      Dashboard uses this for live revenue tracking and floor view.
+    parameters:
+      venueId:
+        description: The venue ID
+        location: $message.payload#/venueId
+    messages:
+      checkEvent:
+        $ref: '#/components/messages/CheckEventMessage'
+
+  lowStockAlerts:
+    address: /topic/venue/{venueId}/low-stock-alerts
+    title: Low Stock Alerts
+    description: |
+      Alert when a product drops below its reorder level.
+      Includes AI-predicted days until stockout.
+      Triggers toast notification on dashboard.
+    parameters:
+      venueId:
+        description: The venue ID
+        location: $message.payload#/venueId
+    messages:
+      lowStockAlert:
+        $ref: '#/components/messages/LowStockAlertMessage'
+
+  shiftUpdates:
+    address: /topic/venue/{venueId}/shift-updates
+    title: Shift Lifecycle Events
+    description: |
+      Shift started, ended, checklist completed, task completed.
+      Keeps shift management dashboard in sync across all connected clients.
+    parameters:
+      venueId:
+        description: The venue ID
+        location: $message.payload#/venueId
+    messages:
+      shiftEvent:
+        $ref: '#/components/messages/ShiftUpdateMessage'
+
+  reservations:
+    address: /topic/venue/{venueId}/reservations
+    title: Reservation Events
+    description: |
+      Reservation created, confirmed, seated, completed, no-show.
+      Dashboard reservation widget stays in sync.
+    parameters:
+      venueId:
+        description: The venue ID
+        location: $message.payload#/venueId
+    messages:
+      reservationEvent:
+        $ref: '#/components/messages/ReservationEventMessage'
+
+operations:
+  onStockUpdate:
+    action: receive
+    channel:
+      $ref: '#/channels/stockUpdates'
+    summary: Receive stock level changes
+    description: Subscribe to get real-time inventory updates for a venue.
+    messages:
+      - $ref: '#/channels/stockUpdates/messages/stockUpdate'
+
+  onCheckEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/checks'
+    summary: Receive guest check lifecycle events
+    description: Subscribe to get live check opens, closes, and voids.
+    messages:
+      - $ref: '#/channels/checks/messages/checkEvent'
+
+  onLowStockAlert:
+    action: receive
+    channel:
+      $ref: '#/channels/lowStockAlerts'
+    summary: Receive low stock alerts
+    description: Subscribe to get alerts when products drop below reorder level.
+    messages:
+      - $ref: '#/channels/lowStockAlerts/messages/lowStockAlert'
+
+  onShiftUpdate:
+    action: receive
+    channel:
+      $ref: '#/channels/shiftUpdates'
+    summary: Receive shift lifecycle events
+    description: Subscribe to get shift start/end and checklist completion events.
+    messages:
+      - $ref: '#/channels/shiftUpdates/messages/shiftEvent'
+
+  onReservationEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/reservations'
+    summary: Receive reservation events
+    description: Subscribe to get reservation status changes.
+    messages:
+      - $ref: '#/channels/reservations/messages/reservationEvent'
+
+components:
+  securitySchemes:
+    jwtQueryParam:
+      type: httpApiKey
+      name: token
+      in: query
+      description: JWT token passed as query parameter for WebSocket authentication
+
+  messages:
+    StockUpdateMessage:
+      name: StockUpdate
+      title: Stock Level Change
+      summary: A product's stock level has changed
+      contentType: application/json
+      payload:
+        type: object
+        required: [productId, productName, venueId, currentQty, reorderLevel, type, timestamp]
+        properties:
+          productId:
+            type: integer
+            format: int64
+            example: 42
+          productName:
+            type: string
+            example: "Hendrick's Gin 700ml"
+          venueId:
+            type: integer
+            format: int64
+            example: 1
+          currentQty:
+            type: number
+            format: double
+            example: 5.0
+          previousQty:
+            type: number
+            format: double
+            example: 6.0
+          reorderLevel:
+            type: number
+            format: double
+            example: 3.0
+          type:
+            type: string
+            enum: [CONSUMPTION, RESTOCK, WASTE, ADJUSTMENT, MENU_DEPLETION]
+            example: MENU_DEPLETION
+          changedBy:
+            type: string
+            example: "Max Müller"
+          timestamp:
+            type: string
+            format: date-time
+
+    CheckEventMessage:
+      name: CheckEvent
+      title: Guest Check Event
+      summary: A guest check was opened, closed, or voided
+      contentType: application/json
+      payload:
+        type: object
+        required: [checkId, venueId, tableNumber, status, event, timestamp]
+        properties:
+          checkId:
+            type: integer
+            format: int64
+            example: 500
+          venueId:
+            type: integer
+            format: int64
+            example: 1
+          tableNumber:
+            type: string
+            example: T5
+          status:
+            type: string
+            enum: [OPEN, CLOSED, VOID, REFUNDED]
+            example: CLOSED
+          event:
+            type: string
+            enum: [OPENED, CLOSED, VOIDED, REFUNDED, ITEM_ADDED]
+            example: CLOSED
+          totalAmount:
+            type: number
+            format: double
+            example: 53.20
+            description: Running total (or final total on close)
+          guestName:
+            type: string
+            nullable: true
+            example: "Anna Weber"
+          servedBy:
+            type: string
+            example: "Max Müller"
+          timestamp:
+            type: string
+            format: date-time
+
+    LowStockAlertMessage:
+      name: LowStockAlert
+      title: Low Stock Alert
+      summary: Product dropped below reorder level
+      contentType: application/json
+      payload:
+        type: object
+        required: [productId, productName, venueId, currentQty, reorderLevel, timestamp]
+        properties:
+          productId:
+            type: integer
+            format: int64
+            example: 42
+          productName:
+            type: string
+            example: "Hendrick's Gin 700ml"
+          venueId:
+            type: integer
+            format: int64
+            example: 1
+          currentQty:
+            type: number
+            format: double
+            example: 2.0
+          reorderLevel:
+            type: number
+            format: double
+            example: 3.0
+          daysUntilStockout:
+            type: integer
+            description: AI-predicted days until completely out
+            example: 2
+          suggestedOrderQty:
+            type: number
+            format: double
+            example: 6.0
+          severity:
+            type: string
+            enum: [WARNING, CRITICAL]
+            example: WARNING
+            description: "WARNING: below reorder level. CRITICAL: less than 1 day of stock."
+          timestamp:
+            type: string
+            format: date-time
+
+    ShiftUpdateMessage:
+      name: ShiftUpdate
+      title: Shift Lifecycle Event
+      summary: Shift started, ended, or checklist completed
+      contentType: application/json
+      payload:
+        type: object
+        required: [shiftId, venueId, event, timestamp]
+        properties:
+          shiftId:
+            type: integer
+            format: int64
+            example: 12
+          venueId:
+            type: integer
+            format: int64
+            example: 1
+          shiftType:
+            type: string
+            enum: [MORNING, AFTERNOON, EVENING, LATE_NIGHT, SPECIAL_EVENT]
+            example: EVENING
+          event:
+            type: string
+            enum: [SHIFT_STARTED, SHIFT_ENDED, CHECKLIST_COMPLETED, TASK_COMPLETED, HANDOVER_CREATED]
+            example: SHIFT_STARTED
+          detail:
+            type: object
+            description: Event-specific details
+            additionalProperties: true
+            example:
+              checklistCategory: OPENING
+              completedBy: "Max Müller"
+          timestamp:
+            type: string
+            format: date-time
+
+    ReservationEventMessage:
+      name: ReservationEvent
+      title: Reservation Status Change
+      summary: Reservation created, confirmed, seated, completed, or no-show
+      contentType: application/json
+      payload:
+        type: object
+        required: [reservationId, venueId, status, event, reservationTime, timestamp]
+        properties:
+          reservationId:
+            type: integer
+            format: int64
+            example: 300
+          venueId:
+            type: integer
+            format: int64
+            example: 1
+          guestName:
+            type: string
+            nullable: true
+            example: "Anna Weber"
+          status:
+            type: string
+            enum: [PENDING, CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
+            example: CONFIRMED
+          event:
+            type: string
+            enum: [CREATED, CONFIRMED, SEATED, COMPLETED, CANCELLED, NO_SHOW]
+            example: CONFIRMED
+          reservationTime:
+            type: string
+            format: date-time
+          partySize:
+            type: integer
+            example: 4
+          tablePreference:
+            type: string
+            nullable: true
+            example: T5
+          timestamp:
+            type: string
+            format: date-time

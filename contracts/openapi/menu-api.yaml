@@ -1,0 +1,731 @@
+openapi: 3.1.0
+info:
+  title: KesselOps — Digital Menu API (Service C)
+  description: |
+    Digital menu management, recipe tracking, cost-of-goods-sold analysis,
+    AI-powered menu descriptions, and multi-platform menu syndication.
+
+    **Package:** `com.kesselops.menu`
+
+    **Cross-domain calls made by this service:**
+    - → AI: `AIOrchestrationService.generate(MENU_DESCRIPTION, vars)` (menu description generation)
+    - → Inventory: cost data pulled from `Product.unitPrice` for COGS calculation
+
+    **Cross-domain calls received:**
+    - ← Guest: `MenuService.getRecipeIngredients(menuItemId)` (auto-depletion on check close)
+    - ← Syndication: `MenuService.getMenuItemWithRecipe(id)` (full data for export)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.kesselops.railway.app
+    description: Production
+
+tags:
+  - name: Menu Items
+    description: Customer-facing digital menu — what you SELL
+  - name: Recipes
+    description: Preparation instructions & ingredient composition per MenuItem (1:1)
+  - name: Recipe Ingredients
+    description: Bridge between WHAT you sell (MenuItem/Recipe) and WHAT you stock (Product)
+  - name: Syndication
+    description: Sync menus to speisekarte.de, Google Business, TripAdvisor
+
+security:
+  - BearerAuth: []
+
+paths:
+
+  # ═══════════════════════════════════════
+  # C1: MENU ITEMS
+  # ═══════════════════════════════════════
+
+  /api/menu-items:
+    post:
+      operationId: createMenuItem
+      tags: [Menu Items]
+      summary: Create a new menu item
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMenuItemRequest'
+      responses:
+        '201':
+          description: Menu item created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MenuItem'
+
+    get:
+      operationId: listMenuItems
+      tags: [Menu Items]
+      summary: List menu items for a venue
+      description: Can be used for the public-facing menu OR internal management.
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/MenuCategory' }
+        - name: isAvailable
+          in: query
+          schema: { type: boolean }
+        - name: isAlcoholFree
+          in: query
+          schema: { type: boolean }
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Search by name or description
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated menu items
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/menu-items/{id}:
+    get:
+      operationId: getMenuItem
+      tags: [Menu Items]
+      summary: Get a single menu item with recipe and syndication status
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPath'
+      responses:
+        '200':
+          description: Full menu item
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MenuItemDetail'
+
+    put:
+      operationId: updateMenuItem
+      tags: [Menu Items]
+      summary: Update menu item details
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMenuItemRequest'
+      responses:
+        '200':
+          description: Updated menu item
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MenuItem'
+
+    delete:
+      operationId: deleteMenuItem
+      tags: [Menu Items]
+      summary: Delete a menu item (fails if open GuestCheckItems reference it)
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPath'
+      responses:
+        '204':
+          description: Deleted
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+  /api/menu-items/{id}/availability:
+    patch:
+      operationId: toggleMenuItemAvailability
+      tags: [Menu Items]
+      summary: "Toggle availability (86'd an item — out of stock)"
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, `STAFF`
+        **Side effects:** If linked to syndication targets, marks them as `OUT_OF_DATE`.
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isAvailable]
+              properties:
+                isAvailable:
+                  type: boolean
+                reason:
+                  type: string
+                  example: "Out of Hendrick's Gin"
+      responses:
+        '200':
+          description: Availability toggled
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/menu-items/{id}/generate-description:
+    post:
+      operationId: generateMenuDescription
+      tags: [Menu Items]
+      summary: AI-generate an appealing menu description from the recipe
+      description: |
+        **Roles:** `OWNER`, `MANAGER`
+        **Cross-domain:** → AI (`AIOrchestrationService.generate(MENU_DESCRIPTION, vars)`)
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPath'
+      responses:
+        '200':
+          description: AI-generated description
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          generatedDescription:
+                            type: string
+                            example: "Refreshing classic with premium Hendrick's Gin, topped with artisanal Fever-Tree tonic and a delicate cucumber ribbon."
+
+  /api/menu-items/{id}/cost-breakdown:
+    get:
+      operationId: getMenuItemCostBreakdown
+      tags: [Menu Items]
+      summary: Detailed COGS and profit margin for a menu item
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPath'
+      responses:
+        '200':
+          description: Cost breakdown
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CostBreakdown'
+
+  # ═══════════════════════════════════════
+  # C2: RECIPES
+  # ═══════════════════════════════════════
+
+  /api/menu-items/{menuItemId}/recipe:
+    post:
+      operationId: createRecipe
+      tags: [Recipes]
+      summary: Create a recipe for a menu item (1:1 relationship)
+      description: '**Roles:** `OWNER`, `MANAGER`. MenuItem must not already have a recipe.'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecipeRequest'
+      responses:
+        '201':
+          description: Recipe created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Recipe'
+        '409':
+          description: Recipe already exists for this menu item
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+    get:
+      operationId: getRecipe
+      tags: [Recipes]
+      summary: Get the recipe for a menu item (including ingredients)
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+      responses:
+        '200':
+          description: Recipe with ingredients
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecipeDetail'
+
+    put:
+      operationId: updateRecipe
+      tags: [Recipes]
+      summary: Update recipe preparation notes, time, or difficulty
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecipeRequest'
+      responses:
+        '200':
+          description: Updated recipe
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Recipe'
+
+    delete:
+      operationId: deleteRecipe
+      tags: [Recipes]
+      summary: Delete a recipe (and all its ingredients)
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+      responses:
+        '204':
+          description: Deleted
+
+  # ═══════════════════════════════════════
+  # C3: RECIPE INGREDIENTS
+  # ═══════════════════════════════════════
+
+  /api/recipes/{recipeId}/ingredients:
+    post:
+      operationId: addRecipeIngredient
+      tags: [Recipe Ingredients]
+      summary: Add an ingredient to a recipe (links Product to Recipe)
+      description: |
+        **Roles:** `OWNER`, `MANAGER`
+        This is the bridge between WHAT you sell (MenuItem/Recipe) and WHAT you stock (Product).
+        `productId` must exist and be active.
+      parameters:
+        - $ref: '#/components/parameters/RecipeIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecipeIngredientRequest'
+      responses:
+        '201':
+          description: Ingredient added
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecipeIngredient'
+
+    get:
+      operationId: listRecipeIngredients
+      tags: [Recipe Ingredients]
+      summary: List all ingredients for a recipe
+      parameters:
+        - $ref: '#/components/parameters/RecipeIdPath'
+      responses:
+        '200':
+          description: Ingredients with product details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RecipeIngredient'
+
+  /api/recipes/{recipeId}/ingredients/{ingredientId}:
+    put:
+      operationId: updateRecipeIngredient
+      tags: [Recipe Ingredients]
+      summary: Update ingredient quantity or optional flag
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/RecipeIdPath'
+        - $ref: '#/components/parameters/IngredientIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecipeIngredientRequest'
+      responses:
+        '200':
+          description: Updated ingredient
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecipeIngredient'
+
+    delete:
+      operationId: removeRecipeIngredient
+      tags: [Recipe Ingredients]
+      summary: Remove an ingredient from a recipe
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/RecipeIdPath'
+        - $ref: '#/components/parameters/IngredientIdPath'
+      responses:
+        '204':
+          description: Removed
+
+  # ═══════════════════════════════════════
+  # C4: MENU SYNDICATION
+  # ═══════════════════════════════════════
+
+  /api/menu-items/{menuItemId}/syndication:
+    post:
+      operationId: registerSyndicationTarget
+      tags: [Syndication]
+      summary: Register a menu item for syndication to an external platform
+      description: '**Roles:** `OWNER`, `MANAGER`. No duplicate target per menuItem.'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target]
+              properties:
+                target:
+                  $ref: '#/components/schemas/SyndicationTarget'
+      responses:
+        '201':
+          description: Syndication target registered
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+        '409':
+          description: Target already registered for this menu item
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+  /api/menu-items/{menuItemId}/syndication/sync:
+    post:
+      operationId: syncMenuItem
+      tags: [Syndication]
+      summary: Trigger sync of this menu item to all registered targets
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+      responses:
+        '200':
+          description: Sync results
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SyncResult'
+
+  /api/syndication/sync-all:
+    post:
+      operationId: syncAllMenuItems
+      tags: [Syndication]
+      summary: Bulk sync — push all menu items for a venue to all targets
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+      responses:
+        '200':
+          description: Bulk sync summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SyncResult'
+
+  /api/syndication/status:
+    get:
+      operationId: getSyndicationStatus
+      tags: [Syndication]
+      summary: Get syndication status for all menu items at a venue
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: syncStatus
+          in: query
+          schema: { $ref: '#/components/schemas/SyncStatus' }
+      responses:
+        '200':
+          description: Syndication status list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SyndicationRecord'
+
+  /api/menu-items/{menuItemId}/syndication/{syndicationId}:
+    delete:
+      operationId: removeSyndicationTarget
+      tags: [Syndication]
+      summary: Remove a syndication target for a menu item
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/MenuItemIdPathAlt'
+        - name: syndicationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Removed
+
+# ═══════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: '../shared/common-schemas.yaml#/components/securitySchemes/BearerAuth'
+
+  parameters:
+    MenuItemIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    MenuItemIdPathAlt:
+      name: menuItemId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    RecipeIdPath:
+      name: recipeId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    IngredientIdPath:
+      name: ingredientId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  schemas:
+
+    # ── Enums ──
+    MenuCategory:
+      type: string
+      enum: [COCKTAIL, BEER, WINE, BOTANICAL_BOOSTER, SOFT_DRINK, COFFEE, FOOD, SPECIAL]
+    DifficultyLevel:
+      type: string
+      enum: [EASY, MEDIUM, HARD]
+    SyndicationTarget:
+      type: string
+      enum: [SPEISEKARTE_DE, GOOGLE_BUSINESS, TRIPADVISOR, WEBSITE]
+    SyncStatus:
+      type: string
+      enum: [PENDING, SYNCED, FAILED, OUT_OF_DATE]
+
+    # ── Domain Models ──
+    MenuItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        venueId: { type: integer, format: int64 }
+        name: { type: string, example: "Gin & Tonic" }
+        description: { type: string }
+        price: { type: number, format: double, example: 9.50 }
+        category: { $ref: '#/components/schemas/MenuCategory' }
+        imageUrl: { type: string, format: uri }
+        isAvailable: { type: boolean }
+        isAlcoholFree: { type: boolean }
+        allergens:
+          type: array
+          items: { type: string }
+        sortOrder: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    MenuItemDetail:
+      allOf:
+        - $ref: '#/components/schemas/MenuItem'
+        - type: object
+          properties:
+            recipe:
+              $ref: '#/components/schemas/RecipeDetail'
+            syndicationStatus:
+              type: array
+              items:
+                $ref: '#/components/schemas/SyndicationRecord'
+
+    Recipe:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        menuItemId: { type: integer, format: int64 }
+        preparationNotes: { type: string }
+        prepTimeMinutes: { type: integer }
+        difficultyLevel: { $ref: '#/components/schemas/DifficultyLevel' }
+
+    RecipeDetail:
+      allOf:
+        - $ref: '#/components/schemas/Recipe'
+        - type: object
+          properties:
+            ingredients:
+              type: array
+              items:
+                $ref: '#/components/schemas/RecipeIngredient'
+            totalCost: { type: number, format: double }
+            profitMargin: { type: number, format: double }
+
+    RecipeIngredient:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        productName: { type: string }
+        quantity: { type: number, format: double }
+        unit: { type: string }
+        isOptional: { type: boolean }
+        ingredientCost: { type: number, format: double }
+
+    CostBreakdown:
+      type: object
+      properties:
+        menuItemId: { type: integer, format: int64 }
+        menuItemName: { type: string }
+        sellingPrice: { type: number, format: double }
+        ingredientCosts:
+          type: array
+          items:
+            type: object
+            properties:
+              productName: { type: string }
+              quantity: { type: number, format: double }
+              unit: { type: string }
+              unitCost: { type: number, format: double }
+              lineCost: { type: number, format: double }
+        totalCOGS: { type: number, format: double }
+        grossProfit: { type: number, format: double }
+        grossMarginPercent: { type: number, format: double }
+
+    SyndicationRecord:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        menuItemId: { type: integer, format: int64 }
+        menuItemName: { type: string }
+        target: { $ref: '#/components/schemas/SyndicationTarget' }
+        syncStatus: { $ref: '#/components/schemas/SyncStatus' }
+        lastSyncedAt: { type: string, format: date-time, nullable: true }
+
+    SyncResult:
+      type: object
+      properties:
+        synced:
+          type: array
+          items: { type: string }
+        failed:
+          type: array
+          items: { type: string }
+        pending:
+          type: array
+          items: { type: string }
+
+    # ── Request Schemas ──
+    CreateMenuItemRequest:
+      type: object
+      required: [venueId, name, price, category]
+      properties:
+        venueId: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        price: { type: number, format: double, exclusiveMinimum: 0 }
+        category: { $ref: '#/components/schemas/MenuCategory' }
+        imageUrl: { type: string, format: uri }
+        isAvailable: { type: boolean, default: true }
+        isAlcoholFree: { type: boolean, default: false }
+        allergens:
+          type: array
+          items: { type: string }
+        sortOrder: { type: integer, default: 0 }
+
+    CreateRecipeRequest:
+      type: object
+      required: [preparationNotes]
+      properties:
+        preparationNotes: { type: string }
+        prepTimeMinutes: { type: integer }
+        difficultyLevel: { $ref: '#/components/schemas/DifficultyLevel' }
+
+    CreateRecipeIngredientRequest:
+      type: object
+      required: [productId, quantity, unit]
+      properties:
+        productId: { type: integer, format: int64 }
+        quantity: { type: number, format: double, exclusiveMinimum: 0 }
+        unit: { type: string }
+        isOptional: { type: boolean, default: false }

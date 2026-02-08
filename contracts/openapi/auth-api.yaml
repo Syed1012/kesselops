@@ -1,0 +1,403 @@
+openapi: 3.1.0
+info:
+  title: KesselOps — Auth API
+  description: |
+    Authentication & session management for KesselOps.
+    Handles user registration, JWT login, token refresh, logout, and profile access.
+    All other service APIs require the Bearer token issued here.
+  version: 1.0.0
+  contact:
+    name: KesselOps Team
+    url: https://github.com/kesselops
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.kesselops.railway.app
+    description: Production (Railway)
+
+tags:
+  - name: Auth
+    description: Authentication, token management, and session endpoints
+
+paths:
+
+  # ───────────────────────────────────────
+  # POST /api/auth/register
+  # ───────────────────────────────────────
+  /api/auth/register:
+    post:
+      operationId: registerUser
+      tags: [Auth]
+      summary: Register a new user account
+      description: |
+        Owner self-registration (no auth required) or Manager/Owner inviting staff (auth required).
+        - Self-registration creates an OWNER account
+        - Invited users get the role specified in the request body
+      security:
+        - {}
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserSummary'
+        '400':
+          $ref: '../shared/common-schemas.yaml#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+  # ───────────────────────────────────────
+  # POST /api/auth/login
+  # ───────────────────────────────────────
+  /api/auth/login:
+    post:
+      operationId: loginUser
+      tags: [Auth]
+      summary: Authenticate and receive JWT tokens
+      description: |
+        Validates credentials and returns access + refresh tokens.
+        Access token expires in 1 hour, refresh token in 7 days.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Account deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+  # ───────────────────────────────────────
+  # POST /api/auth/refresh
+  # ───────────────────────────────────────
+  /api/auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Auth]
+      summary: Refresh an expired access token
+      description: |
+        Uses a valid refresh token to issue a new access token.
+        The refresh token is rotated (old one invalidated, new one issued).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenPair'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+  # ───────────────────────────────────────
+  # POST /api/auth/logout
+  # ───────────────────────────────────────
+  /api/auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [Auth]
+      summary: Invalidate refresh token (logout)
+      description: |
+        Blacklists the provided refresh token server-side.
+        The access token remains valid until expiry (stateless JWT).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Logged out successfully
+        '401':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Unauthorized'
+
+  # ───────────────────────────────────────
+  # GET /api/auth/me
+  # ───────────────────────────────────────
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Auth]
+      summary: Get current authenticated user profile
+      description: Returns the full profile of the user identified by the JWT token.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Unauthorized'
+
+  # ───────────────────────────────────────
+  # PUT /api/auth/change-password
+  # ───────────────────────────────────────
+  /api/auth/change-password:
+    put:
+      operationId: changePassword
+      tags: [Auth]
+      summary: Change the authenticated user's password
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+        '400':
+          description: New password doesn't meet requirements
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+# ═══════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: '../shared/common-schemas.yaml#/components/securitySchemes/BearerAuth'
+
+  schemas:
+
+    # ── Request Bodies ──
+    RegisterRequest:
+      type: object
+      required: [firstName, lastName, email, password]
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Max
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Müller
+        email:
+          type: string
+          format: email
+          example: max@oscho-bar.de
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: 'Min 8 chars, at least 1 uppercase, 1 digit'
+          example: securePass123!
+        role:
+          $ref: '../shared/common-schemas.yaml#/components/schemas/Role'
+        phone:
+          type: string
+          example: '+49 170 1234567'
+        venueId:
+          type: integer
+          format: int64
+          description: Required for STAFF/TRAINEE role
+          example: 1
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: max@oscho-bar.de
+        password:
+          type: string
+          format: password
+          example: securePass123!
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: dGhpcyBpcyBhIHJlZnJlc2g...
+
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+
+    # ── Response Bodies ──
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        refreshToken:
+          type: string
+          example: dGhpcyBpcyBhIHJlZnJlc2g...
+        expiresIn:
+          type: integer
+          description: Access token TTL in seconds
+          example: 3600
+        tokenType:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/UserSummary'
+
+    TokenPair:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          example: 3600
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 5
+        firstName:
+          type: string
+          example: Max
+        lastName:
+          type: string
+          example: Müller
+        email:
+          type: string
+          format: email
+          example: max@oscho-bar.de
+        role:
+          $ref: '../shared/common-schemas.yaml#/components/schemas/Role'
+        venueId:
+          type: integer
+          format: int64
+          example: 1
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/UserSummary'
+        - type: object
+          properties:
+            phone:
+              type: string
+              example: '+49 170 1234567'
+            venue:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                name:
+                  type: string
+                  example: OSCHO Café & Bar
+                type:
+                  type: string
+                  example: BAR
+            updatedAt:
+              type: string
+              format: date-time

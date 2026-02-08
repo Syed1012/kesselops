@@ -1,0 +1,1771 @@
+openapi: 3.1.0
+info:
+  title: KesselOps — Operations API (Service A)
+  description: |
+    Core operations service for KesselOps — the backbone of venue management.
+    Covers: Users, Venues, Shifts, Shift Assignments, Handovers, Checklists,
+    Task Items, Photo Proofs, Training Modules, and Staff Progress.
+
+    **Package:** `com.kesselops.operations`
+
+    **Cross-domain calls made by this service:**
+    - → Inventory: `ProductService.getLowStockCount(venueId)` (dashboard)
+    - → Guest: `GuestCheckService.getOpenCheckCount(venueId)` (dashboard)
+    - → Guest: `GuestCheckService.getRevenueToday(venueId)` (dashboard)
+    - → Guest: `ReservationService.getPendingCount(venueId)` (dashboard)
+    - → Guest: `GuestCheckService.getRevenueByShift(shiftId)` (shift revenue)
+    - → AI: `AIOrchestrationService.generate(ONBOARDING_GUIDE)` (training generation)
+  version: 1.0.0
+  contact:
+    name: KesselOps Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.kesselops.railway.app
+    description: Production (Railway)
+
+tags:
+  - name: Users
+    description: Staff user management (CRUD, activate/deactivate)
+  - name: Venues
+    description: Venue (restaurant/bar/café) management and dashboard
+  - name: Shifts
+    description: Shift lifecycle — create, schedule, track active shifts
+  - name: Shift Assignments
+    description: Assign staff to shifts, confirm/decline/no-show tracking
+  - name: Handovers
+    description: Structured shift handover notes (replaces WhatsApp chaos)
+  - name: Checklists
+    description: OPENING, CLOSING, HACCP, HANDOVER, EMERGENCY checklists
+  - name: Task Items
+    description: Individual tasks within checklists — atomic work units
+  - name: Photo Proofs
+    description: HACCP compliance photo evidence upload
+  - name: Training
+    description: Training modules and staff progress tracking
+
+security:
+  - BearerAuth: []
+
+paths:
+
+  # ═══════════════════════════════════════
+  # A1: USERS
+  # ═══════════════════════════════════════
+
+  /api/users:
+    get:
+      operationId: listUsers
+      tags: [Users]
+      summary: List all users (paginated, filterable)
+      description: |
+        Returns paginated user list. Owners see all users, Managers see only their venue's staff.
+        **Roles:** `OWNER`, `MANAGER`
+      parameters:
+        - name: venueId
+          in: query
+          schema: { type: integer, format: int64 }
+          description: Filter by venue
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+          description: Filter by role
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+          description: Filter by active status
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Search by firstName, lastName, or email (partial match)
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+        '401':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Unauthorized'
+        '403':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Forbidden'
+
+  /api/users/{id}:
+    get:
+      operationId: getUser
+      tags: [Users]
+      summary: Get a single user by ID
+      description: |
+        **Roles:** `OWNER`, `MANAGER`, or the user themselves
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '404':
+          $ref: '../shared/common-schemas.yaml#/components/responses/NotFound'
+
+    put:
+      operationId: updateUser
+      tags: [Users]
+      summary: Update user details
+      description: |
+        Updates name, phone, role. Email change not allowed.
+        **Roles:** `OWNER`, `MANAGER` (their venue's staff), or user themselves (name/phone only)
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          $ref: '../shared/common-schemas.yaml#/components/responses/BadRequest'
+
+  /api/users/{id}/deactivate:
+    patch:
+      operationId: deactivateUser
+      tags: [Users]
+      summary: Soft-deactivate a user
+      description: |
+        Sets `isActive = false`. User can no longer log in. Does NOT delete.
+        **Roles:** `OWNER`, `MANAGER`
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: User deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/users/{id}/activate:
+    patch:
+      operationId: activateUser
+      tags: [Users]
+      summary: Re-activate a deactivated user
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: User activated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  # ═══════════════════════════════════════
+  # A2: VENUES
+  # ═══════════════════════════════════════
+
+  /api/venues:
+    post:
+      operationId: createVenue
+      tags: [Venues]
+      summary: Create a new venue
+      description: '**Roles:** `OWNER`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVenueRequest'
+      responses:
+        '201':
+          description: Venue created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Venue'
+
+    get:
+      operationId: listVenues
+      tags: [Venues]
+      summary: List venues the user has access to
+      description: |
+        Owner sees all their venues. Manager/Staff/Trainee see only their assigned venue.
+      responses:
+        '200':
+          description: List of venues
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Venue'
+
+  /api/venues/{id}:
+    get:
+      operationId: getVenue
+      tags: [Venues]
+      summary: Get venue details
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      responses:
+        '200':
+          description: Venue details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Venue'
+
+    put:
+      operationId: updateVenue
+      tags: [Venues]
+      summary: Update venue details
+      description: '**Roles:** `OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVenueRequest'
+      responses:
+        '200':
+          description: Updated venue
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Venue'
+
+  /api/venues/{id}/staff:
+    get:
+      operationId: listVenueStaff
+      tags: [Venues]
+      summary: List all active staff for a venue
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      responses:
+        '200':
+          description: Staff list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StaffSummary'
+
+  /api/venues/{id}/dashboard:
+    get:
+      operationId: getVenueDashboard
+      tags: [Venues]
+      summary: Venue dashboard — real-time operational summary
+      description: |
+        Aggregates data from multiple domains:
+        - Active shift info (Operations)
+        - Checklist progress (Operations)
+        - Low stock alerts (→ Inventory cross-domain)
+        - Open guest checks (→ Guest cross-domain)
+        - Today's revenue (→ Guest cross-domain)
+        - Pending reservations (→ Guest cross-domain)
+
+        **Roles:** `OWNER`, `MANAGER`
+      parameters:
+        - $ref: '#/components/parameters/VenueIdPath'
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VenueDashboard'
+
+  # ═══════════════════════════════════════
+  # A3: SHIFTS
+  # ═══════════════════════════════════════
+
+  /api/shifts:
+    post:
+      operationId: createShift
+      tags: [Shifts]
+      summary: Create a new shift
+      description: |
+        Creates a shift for a venue. No overlapping shifts of the same type allowed.
+        **Roles:** `OWNER`, `MANAGER`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShiftRequest'
+      responses:
+        '201':
+          description: Shift created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Shift'
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+    get:
+      operationId: listShifts
+      tags: [Shifts]
+      summary: List shifts (paginated, filterable)
+      description: '**Roles:** `OWNER`, `MANAGER`, `STAFF` (own venue only)'
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+          description: Start of date range (inclusive)
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+          description: End of date range (inclusive)
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/ShiftType' }
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/PageParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SizeParam'
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Paginated shift list
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/PaginatedResponse'
+
+  /api/shifts/{id}:
+    get:
+      operationId: getShift
+      tags: [Shifts]
+      summary: Get shift with assignments, checklists, handover
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPath'
+      responses:
+        '200':
+          description: Full shift detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ShiftDetail'
+
+    put:
+      operationId: updateShift
+      tags: [Shifts]
+      summary: Update shift details
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShiftRequest'
+      responses:
+        '200':
+          description: Updated shift
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Shift'
+
+    delete:
+      operationId: deleteShift
+      tags: [Shifts]
+      summary: Delete a shift
+      description: |
+        Only if no checklists, guest checks, or handovers are linked.
+        **Roles:** `OWNER`, `MANAGER`
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPath'
+      responses:
+        '204':
+          description: Shift deleted
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+  /api/shifts/active:
+    get:
+      operationId: getActiveShift
+      tags: [Shifts]
+      summary: Get currently active shift for a venue
+      description: Returns the shift where `now()` is between startTime and endTime
+      parameters:
+        - $ref: '../shared/common-schemas.yaml#/components/parameters/VenueIdParam'
+      responses:
+        '200':
+          description: Active shift (or null in data if none)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Shift'
+                        nullable: true
+
+  /api/shifts/{id}/revenue:
+    get:
+      operationId: getShiftRevenue
+      tags: [Shifts]
+      summary: Revenue generated during this shift
+      description: |
+        Cross-domain call to Guest service for revenue analytics.
+        **Roles:** `OWNER`, `MANAGER`
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPath'
+      responses:
+        '200':
+          description: Shift revenue summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ShiftRevenue'
+
+  # ═══════════════════════════════════════
+  # A4: SHIFT ASSIGNMENTS
+  # ═══════════════════════════════════════
+
+  /api/shifts/{shiftId}/assignments:
+    post:
+      operationId: createAssignment
+      tags: [Shift Assignments]
+      summary: Assign a user to a shift
+      description: |
+        Creates assignment with `PENDING` status. User must be in same venue, active, and not overlapping.
+        **Roles:** `OWNER`, `MANAGER`
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+                  example: 5
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ShiftAssignment'
+        '409':
+          description: User already assigned to overlapping shift
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+    get:
+      operationId: listAssignments
+      tags: [Shift Assignments]
+      summary: List all assignments for a shift
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      responses:
+        '200':
+          description: Assignment list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ShiftAssignment'
+
+  /api/shifts/{shiftId}/assignments/{assignmentId}/confirm:
+    patch:
+      operationId: confirmAssignment
+      tags: [Shift Assignments]
+      summary: Confirm shift assignment (PENDING → CONFIRMED)
+      description: '**Roles:** The assigned user, or `MANAGER`/`OWNER`'
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+        - $ref: '#/components/parameters/AssignmentIdPath'
+      responses:
+        '200':
+          description: Assignment confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/shifts/{shiftId}/assignments/{assignmentId}/decline:
+    patch:
+      operationId: declineAssignment
+      tags: [Shift Assignments]
+      summary: Decline shift assignment (PENDING → DECLINED)
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+        - $ref: '#/components/parameters/AssignmentIdPath'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: Sick leave
+      responses:
+        '200':
+          description: Assignment declined
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/shifts/{shiftId}/assignments/{assignmentId}/no-show:
+    patch:
+      operationId: markAssignmentNoShow
+      tags: [Shift Assignments]
+      summary: Mark as no-show (CONFIRMED → NO_SHOW)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+        - $ref: '#/components/parameters/AssignmentIdPath'
+      responses:
+        '200':
+          description: Marked as no-show
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/shifts/{shiftId}/assignments/{assignmentId}:
+    delete:
+      operationId: deleteAssignment
+      tags: [Shift Assignments]
+      summary: Remove a shift assignment
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+        - $ref: '#/components/parameters/AssignmentIdPath'
+      responses:
+        '204':
+          description: Assignment removed
+
+  /api/users/{userId}/assignments:
+    get:
+      operationId: listUserAssignments
+      tags: [Shift Assignments]
+      summary: List all shift assignments for a user ("My Shifts")
+      description: '**Roles:** The user themselves, or `MANAGER`/`OWNER`'
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/AssignmentStatus' }
+      responses:
+        '200':
+          description: User's assignments with shift details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ShiftAssignment'
+
+  # ═══════════════════════════════════════
+  # A5: SHIFT HANDOVERS
+  # ═══════════════════════════════════════
+
+  /api/shifts/{shiftId}/handover:
+    post:
+      operationId: createHandover
+      tags: [Handovers]
+      summary: Create a shift handover
+      description: |
+        Structured notes from outgoing shift to incoming shift. One per shift.
+        **Roles:** `OWNER`, `MANAGER`, `STAFF` (if assigned)
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHandoverRequest'
+      responses:
+        '201':
+          description: Handover created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Handover'
+        '409':
+          description: Handover already exists for this shift
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+    get:
+      operationId: getHandover
+      tags: [Handovers]
+      summary: Get the handover FROM this shift (outgoing)
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      responses:
+        '200':
+          description: Handover object
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Handover'
+        '404':
+          $ref: '../shared/common-schemas.yaml#/components/responses/NotFound'
+
+  /api/shifts/{shiftId}/incoming-handover:
+    get:
+      operationId: getIncomingHandover
+      tags: [Handovers]
+      summary: Get the handover TO this shift (incoming — what previous crew left)
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      responses:
+        '200':
+          description: Incoming handover
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Handover'
+
+  /api/handovers/{handoverId}/acknowledge:
+    patch:
+      operationId: acknowledgeHandover
+      tags: [Handovers]
+      summary: Acknowledge reading a handover
+      description: '**Roles:** User assigned to the incoming (toShift) shift'
+      parameters:
+        - name: handoverId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Handover acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  # ═══════════════════════════════════════
+  # A6: CHECKLISTS
+  # ═══════════════════════════════════════
+
+  /api/shifts/{shiftId}/checklists:
+    post:
+      operationId: createChecklist
+      tags: [Checklists]
+      summary: Create a checklist for a shift
+      description: |
+        Max 1 per category per shift (except EMERGENCY).
+        **Roles:** `OWNER`, `MANAGER`, `STAFF` (if assigned)
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChecklistRequest'
+      responses:
+        '201':
+          description: Checklist created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Checklist'
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+    get:
+      operationId: listChecklistsForShift
+      tags: [Checklists]
+      summary: List all checklists for a shift
+      parameters:
+        - $ref: '#/components/parameters/ShiftIdPathAlt'
+      responses:
+        '200':
+          description: Checklists with completion percentages
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Checklist'
+
+  /api/checklists/{id}:
+    get:
+      operationId: getChecklist
+      tags: [Checklists]
+      summary: Get checklist with all task items
+      parameters:
+        - $ref: '#/components/parameters/ChecklistIdPath'
+      responses:
+        '200':
+          description: Checklist with tasks
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ChecklistDetail'
+
+    delete:
+      operationId: deleteChecklist
+      tags: [Checklists]
+      summary: Delete an empty checklist
+      description: 'Fails if tasks exist. **Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ChecklistIdPath'
+      responses:
+        '204':
+          description: Deleted
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+  /api/checklists/{id}/complete:
+    patch:
+      operationId: completeChecklist
+      tags: [Checklists]
+      summary: Mark checklist as completed
+      description: Only succeeds if all required tasks are DONE.
+      parameters:
+        - $ref: '#/components/parameters/ChecklistIdPath'
+      responses:
+        '200':
+          description: Checklist completed
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+        '422':
+          $ref: '../shared/common-schemas.yaml#/components/responses/UnprocessableEntity'
+
+  # ═══════════════════════════════════════
+  # A7: TASK ITEMS
+  # ═══════════════════════════════════════
+
+  /api/checklists/{checklistId}/tasks:
+    post:
+      operationId: createTask
+      tags: [Task Items]
+      summary: Add a task to a checklist
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ChecklistIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created with status NOT_DONE
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TaskItem'
+
+  /api/checklists/{checklistId}/tasks/batch:
+    post:
+      operationId: createTasksBatch
+      tags: [Task Items]
+      summary: Add multiple tasks at once (template-based)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - $ref: '#/components/parameters/ChecklistIdPathAlt'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tasks]
+              properties:
+                tasks:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Tasks created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TaskItem'
+
+  /api/tasks/{taskId}/complete:
+    patch:
+      operationId: completeTask
+      tags: [Task Items]
+      summary: Mark a task as DONE
+      description: If `requiresPhoto`, must provide `photoProofId`.
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photoProofId:
+                  type: integer
+                  format: int64
+                  description: Required if task.requiresPhoto == true
+      responses:
+        '200':
+          description: Task completed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TaskItem'
+        '422':
+          description: Photo proof required but not provided
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/ErrorResponse'
+
+  /api/tasks/{taskId}/skip:
+    patch:
+      operationId: skipTask
+      tags: [Task Items]
+      summary: Skip a task with reason (NOT_DONE → SKIPPED)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: Fridge out of service today
+      responses:
+        '200':
+          description: Task skipped
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/tasks/{taskId}/reset:
+    patch:
+      operationId: resetTask
+      tags: [Task Items]
+      summary: Reset task to NOT_DONE (undo completion)
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Task reset
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  # ═══════════════════════════════════════
+  # A8: PHOTO PROOFS
+  # ═══════════════════════════════════════
+
+  /api/photo-proofs:
+    post:
+      operationId: uploadPhotoProof
+      tags: [Photo Proofs]
+      summary: Upload a photo proof image
+      description: 'JPEG or PNG, max 10MB. Stored in Cloudflare R2.'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG). Max 10MB.
+      responses:
+        '201':
+          description: Photo uploaded
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PhotoProof'
+
+  /api/photo-proofs/{id}:
+    get:
+      operationId: getPhotoProof
+      tags: [Photo Proofs]
+      summary: Get photo proof metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Photo proof metadata
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PhotoProof'
+
+  # ═══════════════════════════════════════
+  # A9: TRAINING MODULES
+  # ═══════════════════════════════════════
+
+  /api/training/modules:
+    post:
+      operationId: createTrainingModule
+      tags: [Training]
+      summary: Create a training module
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrainingModuleRequest'
+      responses:
+        '201':
+          description: Module created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrainingModule'
+
+    get:
+      operationId: listTrainingModules
+      tags: [Training]
+      summary: List training modules
+      parameters:
+        - name: targetRole
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/TrainingType' }
+        - name: venueId
+          in: query
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Training module list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TrainingModule'
+
+  /api/training/modules/generate:
+    post:
+      operationId: generateTrainingModule
+      tags: [Training]
+      summary: AI-generate a training module
+      description: |
+        Calls AI Orchestration to generate training content based on role, type, and venue context.
+        **Cross-domain → AI:** `AIOrchestrationService.generate(ONBOARDING_GUIDE, vars)`
+        **Roles:** `OWNER`, `MANAGER`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetRole, type, venueId]
+              properties:
+                targetRole:
+                  $ref: '#/components/schemas/Role'
+                type:
+                  $ref: '#/components/schemas/TrainingType'
+                venueId:
+                  type: integer
+                  format: int64
+      responses:
+        '201':
+          description: AI-generated training module
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrainingModule'
+
+  /api/training/modules/{id}:
+    get:
+      operationId: getTrainingModule
+      tags: [Training]
+      summary: Get training module with full content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Full training module
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrainingModule'
+
+    put:
+      operationId: updateTrainingModule
+      tags: [Training]
+      summary: Update training module
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrainingModuleRequest'
+      responses:
+        '200':
+          description: Updated module
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TrainingModule'
+
+    delete:
+      operationId: deleteTrainingModule
+      tags: [Training]
+      summary: Delete training module
+      description: 'Fails if staff progress records exist. **Roles:** `OWNER`'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Deleted
+        '409':
+          $ref: '../shared/common-schemas.yaml#/components/responses/Conflict'
+
+  # ═══════════════════════════════════════
+  # A10: STAFF PROGRESS
+  # ═══════════════════════════════════════
+
+  /api/training/progress:
+    post:
+      operationId: createStaffProgress
+      tags: [Training]
+      summary: Start tracking progress on a training module
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, trainingModuleId]
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+                trainingModuleId:
+                  type: integer
+                  format: int64
+      responses:
+        '201':
+          description: Progress tracking started
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StaffProgress'
+
+  /api/training/progress/{id}/start:
+    patch:
+      operationId: startProgress
+      tags: [Training]
+      summary: Mark training as started (NOT_STARTED → IN_PROGRESS)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Progress started
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/training/progress/{id}/update:
+    patch:
+      operationId: updateProgressPercent
+      tags: [Training]
+      summary: Update completion percentage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [completionPercent]
+              properties:
+                completionPercent:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+      responses:
+        '200':
+          description: Progress updated
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/training/progress/{id}/complete:
+    patch:
+      operationId: completeProgress
+      tags: [Training]
+      summary: Mark training as completed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quizScore:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+      responses:
+        '200':
+          description: Training completed
+          content:
+            application/json:
+              schema:
+                $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+  /api/training/progress/user/{userId}:
+    get:
+      operationId: getProgressByUser
+      tags: [Training]
+      summary: All training progress for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: User's training progress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StaffProgress'
+
+  /api/training/progress/module/{moduleId}:
+    get:
+      operationId: getProgressByModule
+      tags: [Training]
+      summary: All staff progress for a module
+      description: '**Roles:** `OWNER`, `MANAGER`'
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Module progress across staff
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/StaffProgress'
+
+# ═══════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: '../shared/common-schemas.yaml#/components/securitySchemes/BearerAuth'
+
+  parameters:
+    UserIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    VenueIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ShiftIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ShiftIdPathAlt:
+      name: shiftId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    AssignmentIdPath:
+      name: assignmentId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ChecklistIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ChecklistIdPathAlt:
+      name: checklistId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  schemas:
+
+    # ── Enums ──
+    Role:
+      type: string
+      enum: [OWNER, MANAGER, STAFF, TRAINEE]
+    ShiftType:
+      type: string
+      enum: [MORNING, AFTERNOON, EVENING, NIGHT]
+    AssignmentStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, DECLINED, NO_SHOW]
+    ChecklistCategory:
+      type: string
+      enum: [OPENING, CLOSING, HANDOVER, HACCP, EMERGENCY]
+    TaskStatus:
+      type: string
+      enum: [NOT_DONE, DONE, SKIPPED]
+    TrainingType:
+      type: string
+      enum: [ONBOARDING, HYGIENE, SAFETY, BEVERAGE, SERVICE, CHECKLIST_GUIDE]
+    ProgressStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, COMPLETED]
+
+    # ── Domain Models ──
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64, example: 5 }
+        firstName: { type: string, example: Max }
+        lastName: { type: string, example: Müller }
+        email: { type: string, format: email, example: max@oscho-bar.de }
+        role: { $ref: '#/components/schemas/Role' }
+        phone: { type: string, example: '+49 170 1234567' }
+        venueId: { type: integer, format: int64, example: 1 }
+        isActive: { type: boolean, example: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    StaffSummary:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        firstName: { type: string }
+        lastName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        isActive: { type: boolean }
+
+    Venue:
+      type: object
+      properties:
+        id: { type: integer, format: int64, example: 1 }
+        name: { type: string, example: OSCHO Café & Bar }
+        address: { type: string, example: Theodor-Heuss-Straße 4 }
+        city: { type: string, example: Stuttgart }
+        type: { type: string, example: BAR }
+        timezone: { type: string, example: Europe/Berlin }
+        createdAt: { type: string, format: date-time }
+
+    VenueDashboard:
+      type: object
+      properties:
+        venueId: { type: integer, format: int64 }
+        venueName: { type: string }
+        activeShift:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, format: int64 }
+            type: { $ref: '#/components/schemas/ShiftType' }
+            staffCount: { type: integer }
+        checklistsToday:
+          type: object
+          properties:
+            total: { type: integer }
+            completed: { type: integer }
+            pending: { type: integer }
+        lowStockAlerts: { type: integer, description: 'Cross-domain → Inventory' }
+        openGuestChecks: { type: integer, description: 'Cross-domain → Guest' }
+        revenueToday: { type: number, format: double, description: 'Cross-domain → Guest' }
+        pendingReservations: { type: integer, description: 'Cross-domain → Guest' }
+
+    Shift:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        venueId: { type: integer, format: int64 }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        type: { $ref: '#/components/schemas/ShiftType' }
+        notes: { type: string }
+        isActive: { type: boolean }
+        durationHours: { type: number, format: double }
+        createdAt: { type: string, format: date-time }
+
+    ShiftDetail:
+      allOf:
+        - $ref: '#/components/schemas/Shift'
+        - type: object
+          properties:
+            assignments:
+              type: array
+              items:
+                $ref: '#/components/schemas/ShiftAssignment'
+            checklists:
+              type: array
+              items:
+                $ref: '#/components/schemas/Checklist'
+            handover:
+              $ref: '#/components/schemas/Handover'
+              nullable: true
+
+    ShiftRevenue:
+      type: object
+      properties:
+        shiftId: { type: integer, format: int64 }
+        totalRevenue: { type: number, format: double, example: 2450.80 }
+        totalChecks: { type: integer, example: 34 }
+        averageCheckSize: { type: number, format: double, example: 72.08 }
+        totalTips: { type: number, format: double, example: 198.50 }
+        topSellingItems:
+          type: array
+          items:
+            type: object
+            properties:
+              menuItemId: { type: integer, format: int64 }
+              name: { type: string }
+              quantitySold: { type: integer }
+
+    ShiftAssignment:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        userName: { type: string }
+        shiftId: { type: integer, format: int64 }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/AssignmentStatus' }
+        assignedAt: { type: string, format: date-time }
+        assignedBy: { type: string }
+
+    Handover:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        fromShiftId: { type: integer, format: int64 }
+        toShiftId: { type: integer, format: int64 }
+        authorUserId: { type: integer, format: int64 }
+        authorName: { type: string }
+        summary: { type: string }
+        openIssues: { type: string }
+        nextSteps: { type: string }
+        acknowledgedBy:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+        acknowledgedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    Checklist:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        shiftId: { type: integer, format: int64 }
+        category: { $ref: '#/components/schemas/ChecklistCategory' }
+        title: { type: string }
+        isCompleted: { type: boolean }
+        completionPercentage: { type: number, format: double }
+        createdAt: { type: string, format: date-time }
+
+    ChecklistDetail:
+      allOf:
+        - $ref: '#/components/schemas/Checklist'
+        - type: object
+          properties:
+            tasks:
+              type: array
+              items:
+                $ref: '#/components/schemas/TaskItem'
+
+    TaskItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        sortOrder: { type: integer }
+        requiresPhoto: { type: boolean }
+        completedAt: { type: string, format: date-time, nullable: true }
+        completedByUserId: { type: integer, format: int64, nullable: true }
+        completedByName: { type: string, nullable: true }
+        photoProof:
+          $ref: '#/components/schemas/PhotoProof'
+          nullable: true
+
+    PhotoProof:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        fileUrl: { type: string, format: uri }
+        mimeType: { type: string, example: image/jpeg }
+        fileSizeBytes: { type: integer }
+        uploadedAt: { type: string, format: date-time }
+        uploadedByUserId: { type: integer, format: int64 }
+
+    TrainingModule:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        description: { type: string }
+        targetRole: { $ref: '#/components/schemas/Role' }
+        type: { $ref: '#/components/schemas/TrainingType' }
+        contentJson: { type: string, description: 'JSON string with training steps' }
+        estimatedMinutes: { type: integer }
+        sortOrder: { type: integer }
+        isAIGenerated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    StaffProgress:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        trainingModuleId: { type: integer, format: int64 }
+        status: { $ref: '#/components/schemas/ProgressStatus' }
+        completionPercent: { type: integer }
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        quizScore: { type: integer, nullable: true }
+
+    # ── Request Schemas ──
+    UpdateUserRequest:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+
+    CreateVenueRequest:
+      type: object
+      required: [name, address, city, type, timezone]
+      properties:
+        name: { type: string, example: OSCHO Café & Bar }
+        address: { type: string, example: Theodor-Heuss-Straße 4 }
+        city: { type: string, example: Stuttgart }
+        type: { type: string, example: BAR }
+        timezone: { type: string, example: Europe/Berlin }
+
+    CreateShiftRequest:
+      type: object
+      required: [venueId, startTime, endTime, type]
+      properties:
+        venueId: { type: integer, format: int64 }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        type: { $ref: '#/components/schemas/ShiftType' }
+        notes: { type: string }
+
+    UpdateShiftRequest:
+      type: object
+      properties:
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        type: { $ref: '#/components/schemas/ShiftType' }
+        notes: { type: string }
+
+    CreateHandoverRequest:
+      type: object
+      required: [toShiftId, summary]
+      properties:
+        toShiftId: { type: integer, format: int64 }
+        summary: { type: string }
+        openIssues: { type: string }
+        nextSteps: { type: string }
+
+    CreateChecklistRequest:
+      type: object
+      required: [category, title]
+      properties:
+        category: { $ref: '#/components/schemas/ChecklistCategory' }
+        title: { type: string }
+
+    CreateTaskRequest:
+      type: object
+      required: [description, sortOrder]
+      properties:
+        description: { type: string }
+        sortOrder: { type: integer }
+        requiresPhoto: { type: boolean, default: false }
+
+    CreateTrainingModuleRequest:
+      type: object
+      required: [title, description, targetRole, type]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        targetRole: { $ref: '#/components/schemas/Role' }
+        type: { $ref: '#/components/schemas/TrainingType' }
+        contentJson: { type: string }
+        estimatedMinutes: { type: integer }
+        sortOrder: { type: integer }
+        isAIGenerated: { type: boolean, default: false }

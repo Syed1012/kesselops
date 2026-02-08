@@ -1,0 +1,238 @@
+# Shared schemas referenced by all OpenAPI contracts via $ref
+# Usage: $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
+
+openapi: 3.1.0
+info:
+  title: KesselOps — Shared Schemas
+  version: 1.0.0
+
+components:
+
+  # ─────────────────────────────────────
+  # SECURITY SCHEMES
+  # ─────────────────────────────────────
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token obtained from `POST /api/auth/login`.
+        Include in `Authorization: Bearer <token>` header.
+
+  # ─────────────────────────────────────
+  # REUSABLE PARAMETERS
+  # ─────────────────────────────────────
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Zero-based page index
+      required: false
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+    SizeParam:
+      name: size
+      in: query
+      description: Page size (max 100)
+      required: false
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+    SortParam:
+      name: sort
+      in: query
+      description: 'Sort field and direction, e.g. `createdAt,desc`'
+      required: false
+      schema:
+        type: string
+        example: createdAt,desc
+    VenueIdParam:
+      name: venueId
+      in: query
+      description: Filter by venue ID
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  # ─────────────────────────────────────
+  # RESPONSE SCHEMAS
+  # ─────────────────────────────────────
+  schemas:
+
+    # ── Envelope ──
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          description: Response payload (object, array, or null)
+        message:
+          type: string
+          example: Operation completed
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-02-09T14:30:00Z'
+      required: [success, timestamp]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: RESOURCE_NOT_FOUND
+            message:
+              type: string
+              example: Shift with id 42 not found
+            field:
+              type: string
+              nullable: true
+              example: null
+          required: [code, message]
+        timestamp:
+          type: string
+          format: date-time
+      required: [success, error, timestamp]
+
+    PaginatedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items: {}
+            page:
+              type: integer
+              example: 0
+            size:
+              type: integer
+              example: 20
+            totalElements:
+              type: integer
+              format: int64
+              example: 142
+            totalPages:
+              type: integer
+              example: 8
+          required: [content, page, size, totalElements, totalPages]
+        timestamp:
+          type: string
+          format: date-time
+      required: [success, data, timestamp]
+
+    # ── Common domain primitives ──
+    Timestamp:
+      type: string
+      format: date-time
+      example: '2026-02-09T14:30:00Z'
+
+    Role:
+      type: string
+      enum: [OWNER, MANAGER, STAFF, TRAINEE]
+
+  # ─────────────────────────────────────
+  # REUSABLE RESPONSES
+  # ─────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: VALIDATION_ERROR
+              message: 'email: must be a valid email address'
+              field: email
+            timestamp: '2026-02-09T14:30:00Z'
+
+    Unauthorized:
+      description: Missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: UNAUTHORIZED
+              message: Invalid or expired token
+              field: null
+            timestamp: '2026-02-09T14:30:00Z'
+
+    Forbidden:
+      description: Insufficient role/permission
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: FORBIDDEN
+              message: 'Requires role: MANAGER or OWNER'
+              field: null
+            timestamp: '2026-02-09T14:30:00Z'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: RESOURCE_NOT_FOUND
+              message: Resource with given ID not found
+              field: null
+            timestamp: '2026-02-09T14:30:00Z'
+
+    Conflict:
+      description: Business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: CONFLICT
+              message: Shift overlaps with existing shift
+              field: null
+            timestamp: '2026-02-09T14:30:00Z'
+
+    UnprocessableEntity:
+      description: Semantically invalid operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: UNPROCESSABLE_ENTITY
+              message: Cannot close an already closed check
+              field: null
+            timestamp: '2026-02-09T14:30:00Z'
