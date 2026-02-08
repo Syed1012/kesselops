@@ -5,7 +5,7 @@ info:
     Digital menu management, recipe tracking, cost-of-goods-sold analysis,
     AI-powered menu descriptions, and multi-platform menu syndication.
 
-    **Package:** `com.kesselops.menu`
+    **Package:** `de.kesselops.menu`
 
     **Cross-domain calls made by this service:**
     - → AI: `AIOrchestrationService.generate(MENU_DESCRIPTION, vars)` (menu description generation)

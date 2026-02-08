@@ -91,11 +91,11 @@
 **Decision:** Build as a **modular monolith** — 5 Spring Boot packages mirroring our 5 domains. Each package has clean boundaries (own controllers, services, repositories). Can be extracted to microservices post-hackathon with zero refactoring because domain boundaries are already clean.
 
 ```
-com.kesselops
+de.kesselops
 ├── operations/     ← Domain A (Shifts, Checklists, Handovers, Training)
 ├── inventory/      ← Domain B (Products, Stock, Suppliers)
 ├── menu/           ← Domain C (MenuItems, Recipes, Syndication)
-├── guest/          ← Domain D (Reservations, Checks)
+├── guest/          ← Domain D (Guest Profiles, Reservations, Evaluations, Checks)
 ├── ai/             ← Domain E (Prompts, Usage Logging)
 └── shared/         ← Cross-cutting: Auth, Config, DTOs, Exceptions
 ```
@@ -167,7 +167,7 @@ com.kesselops
 
 > Even though we deploy as a modular monolith, each "service" is a clean package with its own controller → service → repository layers.
 
-### Service A: Operations Service (`com.kesselops.operations`)
+### Service A: Operations Service (`de.kesselops.operations`)
 
 | Responsibility         | Entities                                                                 | Key Endpoints                                                           |
 | ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
@@ -178,7 +178,7 @@ com.kesselops
 | Shift handovers        | `ShiftHandover`                                                          | `POST /api/shifts/{id}/handover`, `PUT /api/handovers/{id}/acknowledge` |
 | Staff onboarding       | `TrainingModule`, `TrainingType`, `StaffProgress`, `ProgressStatus`      | `GET /api/training/for-role/{role}`, `PUT /api/training/progress/{id}`  |
 
-### Service B: Inventory Service (`com.kesselops.inventory`)
+### Service B: Inventory Service (`de.kesselops.inventory`)
 
 | Responsibility      | Entities                                      | Key Endpoints                                               |
 | ------------------- | --------------------------------------------- | ----------------------------------------------------------- |
@@ -187,7 +187,7 @@ com.kesselops
 | Stock logging       | `StockLog`, `StockLogType`                    | `POST /api/stock-logs`, `GET /api/stock-logs/by-shift/{id}` |
 | Ordering            | `Order`, `OrderStatus`, `OrderItem`           | `POST /api/orders`, `PUT /api/orders/{id}/deliver`          |
 
-### Service C: Menu Service (`com.kesselops.menu`)
+### Service C: Menu Service (`de.kesselops.menu`)
 
 | Responsibility        | Entities                                             | Key Endpoints                                                            |
 | --------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -195,14 +195,16 @@ com.kesselops
 | Recipes & ingredients | `Recipe`, `RecipeIngredient`                         | `POST /api/recipes`, `GET /api/recipes/{menuItemId}`                     |
 | Menu syndication      | `MenuSyndication`, `SyndicationTarget`, `SyncStatus` | `POST /api/syndication/sync/{menuItemId}`, `GET /api/syndication/status` |
 
-### Service D: Guest Service (`com.kesselops.guest`)
+### Service D: Guest Service (`de.kesselops.guest`)
 
 | Responsibility       | Entities                                                            | Key Endpoints                                                                     |
 | -------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Reservations         | `Reservation`, `ReservationStatus`                                  | `POST /api/reservations`, `PUT /api/reservations/{id}/confirm`                    |
+| Guest profiles       | `GuestProfile`                                                      | `POST /api/guests`, `GET /api/guests/{id}`, `GET /api/guests/{id}/history`        |
+| Reservations         | `Reservation`, `ReservationStatus`                                  | `POST /api/reservations`, `PUT /api/reservations/{id}/confirm`, `PUT /api/reservations/{id}/no-show` |
+| Guest evaluations    | `GuestEvaluation`                                                   | `POST /api/evaluations`, `GET /api/guests/{guestId}/evaluations`, `GET /api/guests/{guestId}/score` |
 | Guest checks (sales) | `GuestCheck`, `GuestCheckItem`, `GuestCheckStatus`, `PaymentMethod` | `POST /api/checks`, `PUT /api/checks/{id}/close`, `GET /api/checks/by-shift/{id}` |
 
-### Service E: AI Service (`com.kesselops.ai`)
+### Service E: AI Service (`de.kesselops.ai`)
 
 | Responsibility   | Entities                           | Key Endpoints                                                     |
 | ---------------- | ---------------------------------- | ----------------------------------------------------------------- |
@@ -248,7 +250,7 @@ kesselops/
 │   │
 │   └── src/
 │       ├── main/
-│       │   ├── java/com/kesselops/
+│       │   ├── java/de/kesselops/
 │       │   │   │
 │       │   │   ├── KesselOpsApplication.java        # @SpringBootApplication
 │       │   │   │
@@ -384,14 +386,18 @@ kesselops/
 │       │   │   │   ├── service/
 │       │   │   │   │   ├── GuestService.java
 │       │   │   │   │   ├── ReservationService.java
+│       │   │   │   │   ├── EvaluationService.java
 │       │   │   │   │   └── GuestCheckService.java
 │       │   │   │   ├── repository/
-│       │   │   │   ├── repository/
+│       │   │   │   │   ├── GuestProfileRepository.java
 │       │   │   │   │   ├── ReservationRepository.java
+│       │   │   │   │   ├── GuestEvaluationRepository.java
 │       │   │   │   │   └── GuestCheckRepository.java
 │       │   │   │   ├── model/
+│       │   │   │   │   ├── GuestProfile.java
 │       │   │   │   │   ├── Reservation.java
 │       │   │   │   │   ├── ReservationStatus.java
+│       │   │   │   │   ├── GuestEvaluation.java
 │       │   │   │   │   ├── GuestCheck.java
 │       │   │   │   │   ├── GuestCheckItem.java
 │       │   │   │   │   ├── GuestCheckStatus.java
@@ -435,7 +441,7 @@ kesselops/
 │       │           └── V6__seed_demo_data.sql
 │       │
 │       └── test/
-│           └── java/com/kesselops/
+│           └── java/de/kesselops/
 │               ├── operations/
 │               │   └── ShiftServiceTest.java
 │               ├── inventory/
@@ -775,7 +781,8 @@ GET /api/guests?page=0&size=20&sort=lastVisitAt,desc
 
 | Feature                           | Domain | Entities Involved                             | Description                                                        |
 | --------------------------------- | ------ | --------------------------------------------- | ------------------------------------------------------------------ |
-| Reservation System                | D      | `Reservation`, `ReservationStatus` (3 states) | CONFIRMED → SEATED → COMPLETED                                     |
+| Reservation System                | D      | `Reservation`, `ReservationStatus` (6 states) | PENDING → CONFIRMED → SEATED → COMPLETED (plus CANCELLED / NO_SHOW) |
+| Reverse Guest Evaluation          | D      | `GuestProfile`, `GuestEvaluation`             | Gastronomer rates guests (behavior/punctuality) for reliability/VIP scoring |
 | Digital Menu Management           | C      | `MenuItem`, `MenuCategory`, `Recipe`          | Centralized menu with categories, pricing, availability, allergens |
 | Menu Syndication to Third Parties | C      | `MenuSyndication`, `SyndicationTarget`        | Auto-sync menus to speisekarte.de, Google Business, TripAdvisor    |
 
@@ -832,7 +839,7 @@ GET /api/guests?page=0&size=20&sort=lastVisitAt,desc
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  AI ORCHESTRATION LAYER (com.kesselops.ai)                   │
+│  AI ORCHESTRATION LAYER (de.kesselops.ai)                   │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  AIOrchestrationService                                │  │
@@ -1001,4 +1008,4 @@ vercel --prod
 
 ---
 
-_KesselOps: 5 domains · 25 entities · 4 AI features · 3 days to win._
+_KesselOps: 5 domains · 27 entities · 4 AI features · 3 days to win._

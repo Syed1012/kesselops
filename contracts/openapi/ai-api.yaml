@@ -6,7 +6,7 @@ info:
     This is the configurable AI brain of KesselOps — powered by Spring AI.
     Unified AI gateway for all content generation across domains.
 
-    **Package:** `com.kesselops.ai`
+    **Package:** `de.kesselops.ai`
 
     **Models:**
     - **Primary:** Anthropic Claude 3.5 Sonnet (text generation)

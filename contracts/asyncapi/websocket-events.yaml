@@ -317,7 +317,7 @@ components:
             example: 1
           shiftType:
             type: string
-            enum: [MORNING, AFTERNOON, EVENING, LATE_NIGHT, SPECIAL_EVENT]
+            enum: [MORNING, AFTERNOON, EVENING, NIGHT]
             example: EVENING
           event:
             type: string

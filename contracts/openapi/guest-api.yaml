@@ -5,7 +5,7 @@ info:
     Guest profiles, reservations, reverse guest evaluations, guest checks (transactions),
     and check line items. The MONEY IN side of KesselOps.
 
-    **Package:** `com.kesselops.guest`
+    **Package:** `de.kesselops.guest`
 
     **Cross-domain calls made by this service:**
     - → Menu: `MenuService.getRecipeIngredients(menuItemId)` (auto-depletion on check close)

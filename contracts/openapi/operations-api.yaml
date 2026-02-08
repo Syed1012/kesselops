@@ -6,7 +6,7 @@ info:
     Covers: Users, Venues, Shifts, Shift Assignments, Handovers, Checklists,
     Task Items, Photo Proofs, Training Modules, and Staff Progress.
 
-    **Package:** `com.kesselops.operations`
+    **Package:** `de.kesselops.operations`
 
     **Cross-domain calls made by this service:**
     - → Inventory: `ProductService.getLowStockCount(venueId)` (dashboard)

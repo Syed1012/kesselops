@@ -5,7 +5,7 @@ info:
     Inventory management, supplier relationships, purchase orders, stock tracking,
     and AI-powered predictions (stock levels, staffing, consumption trends).
 
-    **Package:** `com.kesselops.inventory`
+    **Package:** `de.kesselops.inventory`
 
     **Cross-domain calls made by this service:**
     - → Guest: `ReservationService.countByDate(venueId, date)` (staffing predictions)

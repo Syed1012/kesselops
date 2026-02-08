@@ -1,6 +1,6 @@
 # KesselOps — API Contracts
 
-> **Version:** 1.0.0 · **Last updated:** 2026-02-07
+> **Version:** 1.0.0 · **Last updated:** 2026-02-08
 > **Architecture:** Modular Monolith (Spring Boot 3.4 + Java 21)
 > **AI Decision:** Spring AI — see [AI Decision Rationale](#ai-decision-rationale) below
 
@@ -12,12 +12,12 @@ contracts/
 ├── shared/                            ← Shared schemas, security, parameters
 │   └── common-schemas.yaml            ← Response envelope, pagination, error, security
 ├── openapi/                           ← OpenAPI 3.1.0 contracts (per service)
-│   ├── auth-api.yaml                  ← Authentication & session (6 endpoints)
-│   ├── operations-api.yaml            ← Service A: Shifts, Users, Venues, Checklists, Training (33 endpoints)
-│   ├── inventory-api.yaml             ← Service B: Products, Suppliers, Orders, Predictions (24 endpoints)
-│   ├── menu-api.yaml                  ← Service C: MenuItems, Recipes, Syndication (17 endpoints)
-│   ├── guest-api.yaml                 ← Service D: Guests, Reservations, Checks (26 endpoints)
-│   └── ai-api.yaml                    ← Service E: Prompts, AI Generation, Usage (10 endpoints)
+│   ├── auth-api.yaml                  ← Authentication & session (6 operations)
+│   ├── operations-api.yaml            ← Service A: Shifts, Users, Venues, Checklists, Training (53 operations)
+│   ├── inventory-api.yaml             ← Service B: Products, Suppliers, Orders, Predictions (38 operations)
+│   ├── menu-api.yaml                  ← Service C: MenuItems, Recipes, Syndication (21 operations)
+│   ├── guest-api.yaml                 ← Service D: Guests, Reservations, Checks, Evaluations (33 operations)
+│   └── ai-api.yaml                    ← Service E: Prompts, AI Generation, Usage (13 operations)
 └── asyncapi/                          ← AsyncAPI 3.0.0 contracts
     └── websocket-events.yaml          ← STOMP over WebSocket: 5 topics, all event schemas
 
@@ -77,13 +77,13 @@ npx @openapitools/openapi-generator-cli generate \
 
 ## Endpoint Count
 
-| Contract File | Endpoints | Service Package |
+| Contract File | Operations | Service Package |
 |---------------|-----------|-----------------|
-| `auth-api.yaml` | 6 | `com.kesselops.shared.security` |
-| `operations-api.yaml` | 33 | `com.kesselops.operations` |
-| `inventory-api.yaml` | 24 | `com.kesselops.inventory` |
-| `menu-api.yaml` | 17 | `com.kesselops.menu` |
-| `guest-api.yaml` | 26 | `com.kesselops.guest` |
-| `ai-api.yaml` | 10 | `com.kesselops.ai` |
+| `auth-api.yaml` | 6 | `de.kesselops.shared.security` |
+| `operations-api.yaml` | 53 | `de.kesselops.operations` |
+| `inventory-api.yaml` | 38 | `de.kesselops.inventory` |
+| `menu-api.yaml` | 21 | `de.kesselops.menu` |
+| `guest-api.yaml` | 33 | `de.kesselops.guest` |
+| `ai-api.yaml` | 13 | `de.kesselops.ai` |
 | `websocket-events.yaml` | 5 topics | WebSocket (STOMP) |
-| **TOTAL** | **116 + 5 WS** | — |
+| **TOTAL** | **164 + 5 WS** | — |
