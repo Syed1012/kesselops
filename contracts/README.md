@@ -17,10 +17,13 @@ contracts/
 │   ├── inventory-api.yaml             ← Service B: Products, Suppliers, Orders, Predictions (24 endpoints)
 │   ├── menu-api.yaml                  ← Service C: MenuItems, Recipes, Syndication (17 endpoints)
 │   ├── guest-api.yaml                 ← Service D: Guests, Reservations, Checks (26 endpoints)
-│   ├── social-api.yaml                ← Service E: Posts, Media, Reviews (17 endpoints)
-│   └── ai-api.yaml                    ← Service F: Prompts, AI Generation, Usage (10 endpoints)
+│   └── ai-api.yaml                    ← Service E: Prompts, AI Generation, Usage (10 endpoints)
 └── asyncapi/                          ← AsyncAPI 3.0.0 contracts
     └── websocket-events.yaml          ← STOMP over WebSocket: 5 topics, all event schemas
+
+> **Note:** Social & Marketing features (post generation, review responses) are handled
+> via the AI Service's unified `POST /api/ai/generate` endpoint with categories
+> `SOCIAL_POST` and `REVIEW_RESPONSE`. See [`system-design.md`](../docs/system-design.md).
 ```
 
 ## How to Use
@@ -81,7 +84,6 @@ npx @openapitools/openapi-generator-cli generate \
 | `inventory-api.yaml` | 24 | `com.kesselops.inventory` |
 | `menu-api.yaml` | 17 | `com.kesselops.menu` |
 | `guest-api.yaml` | 26 | `com.kesselops.guest` |
-| `social-api.yaml` | 17 | `com.kesselops.social` |
 | `ai-api.yaml` | 10 | `com.kesselops.ai` |
 | `websocket-events.yaml` | 5 topics | WebSocket (STOMP) |
-| **TOTAL** | **133 + 5 WS** | — |
+| **TOTAL** | **116 + 5 WS** | — |

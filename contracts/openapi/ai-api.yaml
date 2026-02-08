@@ -1,9 +1,10 @@
 openapi: 3.1.0
 info:
-  title: KesselOps — AI Configuration API (Service F)
+  title: KesselOps — AI Service API (Service E)
   description: |
     Prompt template management, AI generation orchestration, and usage logging.
     This is the configurable AI brain of KesselOps — powered by Spring AI.
+    Unified AI gateway for all content generation across domains.
 
     **Package:** `com.kesselops.ai`
 
@@ -12,12 +13,12 @@ info:
     - **Fallback:** OpenAI GPT-4o (vision tasks, fallback text)
 
     **Cross-domain calls received (this service is the AI gateway):**
-    - ← Social: `AIOrchestrationService.generate(SOCIAL_POST, vars)` (post generation)
-    - ← Social: `AIOrchestrationService.generate(REVIEW_RESPONSE, vars)` (review responses)
-    - ← Social: `AIOrchestrationService.suggestHashtags(content)` (hashtags)
     - ← Menu: `AIOrchestrationService.generate(MENU_DESCRIPTION, vars)` (menu descriptions)
     - ← Operations: `AIOrchestrationService.generate(ONBOARDING_GUIDE, vars)` (training)
+    - ← Operations: `AIOrchestrationService.generate(SHIFT_SUMMARY, vars)` (shift summaries)
     - ← Guest: `AIOrchestrationService.generate(inline, guestData)` (guest insight)
+    - Direct: `AIOrchestrationService.generate(SOCIAL_POST, vars)` (social content)
+    - Direct: `AIOrchestrationService.generate(REVIEW_RESPONSE, vars)` (review responses)
 
     **Internal flow (on each generate call):**
     1. Load `PromptTemplate` by venueId + category
@@ -48,7 +49,7 @@ security:
 paths:
 
   # ═══════════════════════════════════════
-  # F1: PROMPT TEMPLATES
+  # E1: PROMPT TEMPLATES
   # ═══════════════════════════════════════
 
   /api/prompts:
@@ -237,7 +238,7 @@ paths:
                 $ref: '../shared/common-schemas.yaml#/components/schemas/SuccessResponse'
 
   # ═══════════════════════════════════════
-  # F2: AI GENERATION (ORCHESTRATION)
+  # E2: AI GENERATION (ORCHESTRATION)
   # ═══════════════════════════════════════
 
   /api/ai/generate:
@@ -298,7 +299,7 @@ paths:
                           $ref: '#/components/schemas/GenerateResponse'
 
   # ═══════════════════════════════════════
-  # F3: AI USAGE LOGS
+  # E3: AI USAGE LOGS
   # ═══════════════════════════════════════
 
   /api/ai/usage:
