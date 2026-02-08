@@ -1,10 +1,11 @@
 # KesselOps — System Design & Architecture
 
 > **Hackathon Stuttgart 2026** · Feb 9–11 · "Code. Cocktails. Repeat."
-> **Project Name:** KesselOps *(Kessel = Stuttgart's valley basin, Ops = Operations)*
-> **Tagline:** *The brain behind every shift.*
+> **Project Name:** KesselOps _(Kessel = Stuttgart's valley basin, Ops = Operations)_
+> **Tagline:** _The brain behind every shift._
 >
 > Related docs:
+>
 > - [`feature-analysis-kano.md`](./feature-analysis-kano.md) — KANO model & sponsor gap analysis (18/18 covered)
 
 ---
@@ -78,14 +79,14 @@
 
 ### Why Modular Monolith (NOT Microservices) for Hackathon
 
-| Factor | Microservices | **Modular Monolith** ✅ |
-|--------|--------------|------------------------|
-| Setup time | 2+ hours per service | 30 min total |
-| Inter-service comms | HTTP/gRPC overhead | Direct method calls |
-| Transaction management | Distributed (saga) | Simple `@Transactional` |
-| Debugging | Multi-container logs | Single JVM, single log |
-| Deployment | K8s / Docker Compose | Single JAR → Railway/Render |
-| **Hackathon speed** | ❌ Too slow | ✅ Ship in 3 days |
+| Factor                 | Microservices        | **Modular Monolith** ✅     |
+| ---------------------- | -------------------- | --------------------------- |
+| Setup time             | 2+ hours per service | 30 min total                |
+| Inter-service comms    | HTTP/gRPC overhead   | Direct method calls         |
+| Transaction management | Distributed (saga)   | Simple `@Transactional`     |
+| Debugging              | Multi-container logs | Single JVM, single log      |
+| Deployment             | K8s / Docker Compose | Single JAR → Railway/Render |
+| **Hackathon speed**    | ❌ Too slow          | ✅ Ship in 3 days           |
 
 **Decision:** Build as a **modular monolith** — 5 Spring Boot packages mirroring our 5 domains. Each package has clean boundaries (own controllers, services, repositories). Can be extracted to microservices post-hackathon with zero refactoring because domain boundaries are already clean.
 
@@ -105,60 +106,60 @@ com.kesselops
 
 ### Frontend
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Framework | **Next.js 15** (App Router) | Server components, RSC, file-based routing, Vercel deploy |
-| Language | **TypeScript 5** | Type safety across frontend |
-| Styling | **Tailwind CSS 4** + **shadcn/ui** | Rapid, beautiful UI. No design system needed. |
-| State | **Zustand** | Lightweight vs Redux, perfect for dashboard state |
-| Data Fetching | **TanStack Query v5** | Caching, optimistic updates, real-time polling |
-| Forms | **React Hook Form** + **Zod** | Validation with zero re-renders |
-| Charts | **Recharts** | Revenue, consumption, waste dashboards |
-| PWA | **next-pwa** | Offline checklist capability for staff |
-| Mobile Camera | **Browser MediaDevices API** | PhotoProof capture for HACCP |
-| Real-time | **Socket.IO client** | Live consumption dashboard |
-| Icons | **Lucide React** | Clean, consistent icon set |
+| Layer         | Technology                         | Why                                                       |
+| ------------- | ---------------------------------- | --------------------------------------------------------- |
+| Framework     | **Next.js 15** (App Router)        | Server components, RSC, file-based routing, Vercel deploy |
+| Language      | **TypeScript 5**                   | Type safety across frontend                               |
+| Styling       | **Tailwind CSS 4** + **shadcn/ui** | Rapid, beautiful UI. No design system needed.             |
+| State         | **Zustand**                        | Lightweight vs Redux, perfect for dashboard state         |
+| Data Fetching | **TanStack Query v5**              | Caching, optimistic updates, real-time polling            |
+| Forms         | **React Hook Form** + **Zod**      | Validation with zero re-renders                           |
+| Charts        | **Recharts**                       | Revenue, consumption, waste dashboards                    |
+| PWA           | **next-pwa**                       | Offline checklist capability for staff                    |
+| Mobile Camera | **Browser MediaDevices API**       | PhotoProof capture for HACCP                              |
+| Real-time     | **Socket.IO client**               | Live consumption dashboard                                |
+| Icons         | **Lucide React**                   | Clean, consistent icon set                                |
 
 ### Backend
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Framework | **Spring Boot 3.4** | Industry-standard, modular, battle-tested |
-| Language | **Java 21** (LTS) | Records, virtual threads, pattern matching |
-| Build | **Gradle (Kotlin DSL)** | Faster than Maven, better dependency management |
-| API | **Spring Web (REST)** | Standard REST controllers |
-| Persistence | **Spring Data JPA + Hibernate** | ORM with repository pattern |
-| Database | **PostgreSQL 16** | JSONB for preferences, full-text search for menus |
-| Migration | **Flyway** | Versioned SQL migrations |
-| Caching | **Spring Cache + Redis** | Session, menu cache, weather data |
-| Auth | **Spring Security + JWT** | Stateless auth, role-based access |
-| Validation | **Jakarta Validation** | `@NotNull`, `@Size`, `@Valid` on DTOs |
-| API Docs | **SpringDoc OpenAPI** | Auto-generated Swagger UI |
-| File Storage | **AWS S3 / MinIO** | PhotoProof, media uploads |
-| WebSocket | **Spring WebSocket + STOMP** | Live consumption dashboard push |
-| Testing | **JUnit 5 + Testcontainers** | Real DB in tests, no H2 hacks |
+| Layer        | Technology                      | Why                                                                   |
+| ------------ | ------------------------------- | --------------------------------------------------------------------- |
+| Framework    | **Spring Boot 3.4**             | Industry-standard, modular, battle-tested                             |
+| Language     | **Java 21** (LTS)               | Records, virtual threads, pattern matching                            |
+| Build        | **Maven**                       | Industry standard, robust dependency management, multi-module support |
+| API          | **Spring Web (REST)**           | Standard REST controllers                                             |
+| Persistence  | **Spring Data JPA + Hibernate** | ORM with repository pattern                                           |
+| Database     | **PostgreSQL 16**               | JSONB for preferences, full-text search for menus                     |
+| Migration    | **Flyway**                      | Versioned SQL migrations                                              |
+| Caching      | **Spring Cache + Redis**        | Session, menu cache, weather data                                     |
+| Auth         | **Spring Security + JWT**       | Stateless auth, role-based access                                     |
+| Validation   | **Jakarta Validation**          | `@NotNull`, `@Size`, `@Valid` on DTOs                                 |
+| API Docs     | **SpringDoc OpenAPI**           | Auto-generated Swagger UI                                             |
+| File Storage | **AWS S3 / MinIO**              | PhotoProof, media uploads                                             |
+| WebSocket    | **Spring WebSocket + STOMP**    | Live consumption dashboard push                                       |
+| Testing      | **JUnit 5 + Testcontainers**    | Real DB in tests, no H2 hacks                                         |
 
 ### AI / LLM Integration
 
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| LLM Provider | **Anthropic Claude API** (primary) / **OpenAI GPT-4o** (fallback) | Best reasoning for content generation |
-| SDK | **Spring AI** | Official Spring integration for LLM calls |
-| Prompt Management | **DB-stored `PromptTemplate`** | Per-venue customizable AI personalities |
-| Weather API | **Open-Meteo** (free) | No API key needed, forecast data for predictions |
-| Google Reviews | **Google My Business API** | Read reviews (future) |
+| Component         | Technology                                                        | Why                                              |
+| ----------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| LLM Provider      | **Anthropic Claude API** (primary) / **OpenAI GPT-4o** (fallback) | Best reasoning for content generation            |
+| SDK               | **Spring AI**                                                     | Official Spring integration for LLM calls        |
+| Prompt Management | **DB-stored `PromptTemplate`**                                    | Per-venue customizable AI personalities          |
+| Weather API       | **Open-Meteo** (free)                                             | No API key needed, forecast data for predictions |
+| Google Reviews    | **Google My Business API**                                        | Read reviews (future)                            |
 
 ### Infrastructure
 
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| Frontend Hosting | **Vercel** | Zero-config Next.js deployment, free tier |
-| Backend Hosting | **Railway** or **Render** | One-click Spring Boot deploy, free PostgreSQL |
-| Database | **Railway PostgreSQL** or **Neon** | Managed, free tier, instant provisioning |
-| Redis | **Upstash Redis** | Serverless Redis, free tier |
-| File Storage | **Cloudflare R2** or **AWS S3** | S3-compatible, generous free tier |
-| CI/CD | **GitHub Actions** | Auto-build on push, deploy to Railway/Vercel |
-| Monitoring | **Spring Boot Actuator** | Health checks, metrics, ready for production |
+| Component        | Technology                         | Why                                           |
+| ---------------- | ---------------------------------- | --------------------------------------------- |
+| Frontend Hosting | **Vercel**                         | Zero-config Next.js deployment, free tier     |
+| Backend Hosting  | **Railway** or **Render**          | One-click Spring Boot deploy, free PostgreSQL |
+| Database         | **Railway PostgreSQL** or **Neon** | Managed, free tier, instant provisioning      |
+| Redis            | **Upstash Redis**                  | Serverless Redis, free tier                   |
+| File Storage     | **Cloudflare R2** or **AWS S3**    | S3-compatible, generous free tier             |
+| CI/CD            | **GitHub Actions**                 | Auto-build on push, deploy to Railway/Vercel  |
+| Monitoring       | **Spring Boot Actuator**           | Health checks, metrics, ready for production  |
 
 ---
 
@@ -168,54 +169,52 @@ com.kesselops
 
 ### Service A: Operations Service (`com.kesselops.operations`)
 
-| Responsibility | Entities | Key Endpoints |
-|---------------|----------|---------------|
-| User & role management | `User`, `Role` | `POST /api/users`, `GET /api/users/{id}` |
-| Venue management | `Venue` | `POST /api/venues`, `GET /api/venues/{id}/staff` |
-| Shift planning | `Shift`, `ShiftType`, `ShiftAssignment`, `AssignmentStatus` | `POST /api/shifts`, `PUT /api/shifts/{id}/assign` |
-| Checklists & HACCP | `Checklist`, `ChecklistCategory`, `TaskItem`, `TaskStatus`, `PhotoProof` | `POST /api/shifts/{id}/checklists`, `PUT /api/tasks/{id}/complete` |
-| Shift handovers | `ShiftHandover` | `POST /api/shifts/{id}/handover`, `PUT /api/handovers/{id}/acknowledge` |
-| Staff onboarding | `TrainingModule`, `TrainingType`, `StaffProgress`, `ProgressStatus` | `GET /api/training/for-role/{role}`, `PUT /api/training/progress/{id}` |
+| Responsibility         | Entities                                                                 | Key Endpoints                                                           |
+| ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| User & role management | `User`, `Role`                                                           | `POST /api/users`, `GET /api/users/{id}`                                |
+| Venue management       | `Venue`                                                                  | `POST /api/venues`, `GET /api/venues/{id}/staff`                        |
+| Shift planning         | `Shift`, `ShiftType`, `ShiftAssignment`, `AssignmentStatus`              | `POST /api/shifts`, `PUT /api/shifts/{id}/assign`                       |
+| Checklists & HACCP     | `Checklist`, `ChecklistCategory`, `TaskItem`, `TaskStatus`, `PhotoProof` | `POST /api/shifts/{id}/checklists`, `PUT /api/tasks/{id}/complete`      |
+| Shift handovers        | `ShiftHandover`                                                          | `POST /api/shifts/{id}/handover`, `PUT /api/handovers/{id}/acknowledge` |
+| Staff onboarding       | `TrainingModule`, `TrainingType`, `StaffProgress`, `ProgressStatus`      | `GET /api/training/for-role/{role}`, `PUT /api/training/progress/{id}`  |
 
 ### Service B: Inventory Service (`com.kesselops.inventory`)
 
-| Responsibility | Entities | Key Endpoints |
-|---------------|----------|---------------|
-| Product catalog | `Product`, `ProductCategory` | `POST /api/products`, `GET /api/products/low-stock` |
-| Supplier management | `Supplier`, `SupplierType`, `SupplierProduct` | `POST /api/suppliers`, `GET /api/suppliers/{id}/products` |
-| Stock logging | `StockLog`, `StockLogType` | `POST /api/stock-logs`, `GET /api/stock-logs/by-shift/{id}` |
-| Ordering | `Order`, `OrderStatus`, `OrderItem` | `POST /api/orders`, `PUT /api/orders/{id}/deliver` |
+| Responsibility      | Entities                                      | Key Endpoints                                               |
+| ------------------- | --------------------------------------------- | ----------------------------------------------------------- |
+| Product catalog     | `Product`, `ProductCategory`                  | `POST /api/products`, `GET /api/products/low-stock`         |
+| Supplier management | `Supplier`, `SupplierType`, `SupplierProduct` | `POST /api/suppliers`, `GET /api/suppliers/{id}/products`   |
+| Stock logging       | `StockLog`, `StockLogType`                    | `POST /api/stock-logs`, `GET /api/stock-logs/by-shift/{id}` |
+| Ordering            | `Order`, `OrderStatus`, `OrderItem`           | `POST /api/orders`, `PUT /api/orders/{id}/deliver`          |
 
 ### Service C: Menu Service (`com.kesselops.menu`)
 
-| Responsibility | Entities | Key Endpoints |
-|---------------|----------|---------------|
-| Menu management | `MenuItem`, `MenuCategory` | `POST /api/menu-items`, `GET /api/menu-items/venue/{id}` |
-| Recipes & ingredients | `Recipe`, `RecipeIngredient` | `POST /api/recipes`, `GET /api/recipes/{menuItemId}` |
-| Menu syndication | `MenuSyndication`, `SyndicationTarget`, `SyncStatus` | `POST /api/syndication/sync/{menuItemId}`, `GET /api/syndication/status` |
+| Responsibility        | Entities                                             | Key Endpoints                                                            |
+| --------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| Menu management       | `MenuItem`, `MenuCategory`                           | `POST /api/menu-items`, `GET /api/menu-items/venue/{id}`                 |
+| Recipes & ingredients | `Recipe`, `RecipeIngredient`                         | `POST /api/recipes`, `GET /api/recipes/{menuItemId}`                     |
+| Menu syndication      | `MenuSyndication`, `SyndicationTarget`, `SyncStatus` | `POST /api/syndication/sync/{menuItemId}`, `GET /api/syndication/status` |
 
 ### Service D: Guest Service (`com.kesselops.guest`)
 
-| Responsibility | Entities | Key Endpoints |
-|---------------|----------|---------------|
-| Reservations | `Reservation`, `ReservationStatus` | `POST /api/reservations`, `PUT /api/reservations/{id}/confirm` |
+| Responsibility       | Entities                                                            | Key Endpoints                                                                     |
+| -------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Reservations         | `Reservation`, `ReservationStatus`                                  | `POST /api/reservations`, `PUT /api/reservations/{id}/confirm`                    |
 | Guest checks (sales) | `GuestCheck`, `GuestCheckItem`, `GuestCheckStatus`, `PaymentMethod` | `POST /api/checks`, `PUT /api/checks/{id}/close`, `GET /api/checks/by-shift/{id}` |
-
-
 
 ### Service E: AI Service (`com.kesselops.ai`)
 
-| Responsibility | Entities | Key Endpoints |
-|---------------|----------|---------------|
+| Responsibility   | Entities                           | Key Endpoints                                                     |
+| ---------------- | ---------------------------------- | ----------------------------------------------------------------- |
 | Prompt templates | `PromptTemplate`, `PromptCategory` | `POST /api/prompts`, `GET /api/prompts/venue/{id}/category/{cat}` |
-| Usage logging | `AIUsageLog` | `GET /api/ai/usage/stats`, `GET /api/ai/usage/by-venue/{id}` |
-| AI orchestration | — (calls Claude/GPT) | `POST /api/ai/generate` (unified AI gateway) |
+| Usage logging    | `AIUsageLog`                       | `GET /api/ai/usage/stats`, `GET /api/ai/usage/by-venue/{id}`      |
+| AI orchestration | — (calls Claude/GPT)               | `POST /api/ai/generate` (unified AI gateway)                      |
 
 ---
 
 ## 5. Project Structure & Directory Layout
 
-```
+````
 kesselops/
 │
 ├── README.md
@@ -244,9 +243,8 @@ kesselops/
 │       └── railway.toml                  # Railway deployment config
 │
 ├── backend/                              # Spring Boot Modular Monolith
-│   ├── build.gradle.kts                  # Gradle Kotlin DSL
-│   ├── settings.gradle.kts
-│   ├── gradle.properties
+│   ├── pom.xml                           # Root Maven POM
+│   │
 │   │
 │   └── src/
 │       ├── main/
@@ -592,7 +590,7 @@ services:
 
 volumes:
   pgdata:
-```
+````
 
 ### CI/CD Pipeline (GitHub Actions)
 
@@ -657,12 +655,12 @@ CREATE INDEX idx_menu_item_venue ON menu.menu_items(venue_id, is_available);
 
 ### Naming Conventions
 
-| Entity | Table | Example |
-|--------|-------|---------|
-| Java class | snake_case plural | `GuestCheck` → `guest.guest_checks` |
-| Foreign key | `<entity>_id` | `shift_id`, `venue_id` |
-| Enum column | snake_case | `GuestCheckStatus` → `status` (stored as `VARCHAR`) |
-| Timestamps | `created_at`, `updated_at` | All entities |
+| Entity      | Table                      | Example                                             |
+| ----------- | -------------------------- | --------------------------------------------------- |
+| Java class  | snake_case plural          | `GuestCheck` → `guest.guest_checks`                 |
+| Foreign key | `<entity>_id`              | `shift_id`, `venue_id`                              |
+| Enum column | snake_case                 | `GuestCheckStatus` → `status` (stored as `VARCHAR`) |
+| Timestamps  | `created_at`, `updated_at` | All entities                                        |
 
 ---
 
@@ -731,15 +729,15 @@ GET /api/guests?page=0&size=20&sort=lastVisitAt,desc
 
 ### Role-Based Access
 
-| Endpoint | OWNER | MANAGER | STAFF | TRAINEE |
-|----------|-------|---------|-------|---------|
-| Venue CRUD | ✅ | ❌ | ❌ | ❌ |
-| Shift create/edit | ✅ | ✅ | ❌ | ❌ |
-| Checklist complete | ✅ | ✅ | ✅ | ✅ |
-| Guest check (sales) | ✅ | ✅ | ✅ | ❌ |
-| Inventory manage | ✅ | ✅ | ❌ | ❌ |
-| Analytics view | ✅ | ✅ | ❌ | ❌ |
-| Training view | ✅ | ✅ | ✅ | ✅ |
+| Endpoint            | OWNER | MANAGER | STAFF | TRAINEE |
+| ------------------- | ----- | ------- | ----- | ------- |
+| Venue CRUD          | ✅    | ❌      | ❌    | ❌      |
+| Shift create/edit   | ✅    | ✅      | ❌    | ❌      |
+| Checklist complete  | ✅    | ✅      | ✅    | ✅      |
+| Guest check (sales) | ✅    | ✅      | ✅    | ❌      |
+| Inventory manage    | ✅    | ✅      | ❌    | ❌      |
+| Analytics view      | ✅    | ✅      | ❌    | ❌      |
+| Training view       | ✅    | ✅      | ✅    | ✅      |
 
 ---
 
@@ -747,70 +745,70 @@ GET /api/guests?page=0&size=20&sort=lastVisitAt,desc
 
 ### Sponsor: OSCHO (Café/Bar/Event)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Digital Opening/Closing Checklists | A | `Checklist`, `TaskItem`, `PhotoProof` | Templated checklists per shift type with photo evidence |
-| HACCP Hygiene Compliance | A | `Checklist(HACCP)`, `TaskItem`, `PhotoProof` | Timestamped hygiene checks with photo proof for audits |
-| Shift Handover Notes | A | `ShiftHandover` | Structured handover (summary, open issues, next steps) replacing WhatsApp |
-| Team Communication | A | `ShiftHandover`, `Checklist` | Structured task-based communication per shift, not chat |
-| Smart Shift Planning | A | `Shift`, `ShiftAssignment`, `AssignmentStatus` | Drag-drop shift assignment with PENDING → CONFIRMED → NO_SHOW tracking |
-| Staff Onboarding | A | `TrainingModule`, `StaffProgress`, `ProgressStatus` | AI-generated role-specific onboarding paths (ONBOARDING, HYGIENE, BEVERAGE, etc.) |
+| Feature                            | Domain | Entities Involved                                   | Description                                                                       |
+| ---------------------------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Digital Opening/Closing Checklists | A      | `Checklist`, `TaskItem`, `PhotoProof`               | Templated checklists per shift type with photo evidence                           |
+| HACCP Hygiene Compliance           | A      | `Checklist(HACCP)`, `TaskItem`, `PhotoProof`        | Timestamped hygiene checks with photo proof for audits                            |
+| Shift Handover Notes               | A      | `ShiftHandover`                                     | Structured handover (summary, open issues, next steps) replacing WhatsApp         |
+| Team Communication                 | A      | `ShiftHandover`, `Checklist`                        | Structured task-based communication per shift, not chat                           |
+| Smart Shift Planning               | A      | `Shift`, `ShiftAssignment`, `AssignmentStatus`      | Drag-drop shift assignment with PENDING → CONFIRMED → NO_SHOW tracking            |
+| Staff Onboarding                   | A      | `TrainingModule`, `StaffProgress`, `ProgressStatus` | AI-generated role-specific onboarding paths (ONBOARDING, HYGIENE, BEVERAGE, etc.) |
 
 ### Sponsor: UNIBEV (Beverage Supplier)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Real-time Stock Tracking | B | `Product`, `StockLog`, `StockLogType` | Every consumption/waste/restock event logged with shift context |
-| Supplier Integration API | B | `Supplier`, `SupplierType`, `SupplierProduct` | UNIBEV product catalog with prices, lead times, min order quantities |
-| Consumption Analytics | B | `ConsumptionTrend`, `StockLog` | Week-over-week usage trends, peak day identification |
+| Feature                  | Domain | Entities Involved                             | Description                                                          |
+| ------------------------ | ------ | --------------------------------------------- | -------------------------------------------------------------------- |
+| Real-time Stock Tracking | B      | `Product`, `StockLog`, `StockLogType`         | Every consumption/waste/restock event logged with shift context      |
+| Supplier Integration API | B      | `Supplier`, `SupplierType`, `SupplierProduct` | UNIBEV product catalog with prices, lead times, min order quantities |
+| Consumption Analytics    | B      | `ConsumptionTrend`, `StockLog`                | Week-over-week usage trends, peak day identification                 |
 
 ### Sponsor: meincocktailfass (Cocktail Kegs)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Cocktail Keg Tracking | B+C | `Product(COCKTAIL_KEG)`, `MenuItem`, `Recipe` | Keg as a Product, cocktail as MenuItem, Recipe links them |
-| Auto-Depletion on Sale | B+C+D | `GuestCheckItem` → `MenuItem` → `Recipe` → `RecipeIngredient` → `Product` | Selling a "Barrel Old Fashioned" automatically depletes keg stock |
-| Keg Reorder Alerts | B | `Product.isLowStock()`, `PredictiveEngine` | Alert when keg drops below reorder level |
-| Quality Standardization | C | `Recipe`, `RecipeIngredient` | Exact recipe with portions ensures consistent cocktails |
+| Feature                 | Domain | Entities Involved                                                         | Description                                                       |
+| ----------------------- | ------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Cocktail Keg Tracking   | B+C    | `Product(COCKTAIL_KEG)`, `MenuItem`, `Recipe`                             | Keg as a Product, cocktail as MenuItem, Recipe links them         |
+| Auto-Depletion on Sale  | B+C+D  | `GuestCheckItem` → `MenuItem` → `Recipe` → `RecipeIngredient` → `Product` | Selling a "Barrel Old Fashioned" automatically depletes keg stock |
+| Keg Reorder Alerts      | B      | `Product.isLowStock()`, `PredictiveEngine`                                | Alert when keg drops below reorder level                          |
+| Quality Standardization | C      | `Recipe`, `RecipeIngredient`                                              | Exact recipe with portions ensures consistent cocktails           |
 
 ### Sponsor: Ludwig Heer 🏆 (Jury Member!)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Reservation System | D | `Reservation`, `ReservationStatus` (3 states) | CONFIRMED → SEATED → COMPLETED |
-| Digital Menu Management | C | `MenuItem`, `MenuCategory`, `Recipe` | Centralized menu with categories, pricing, availability, allergens |
-| Menu Syndication to Third Parties | C | `MenuSyndication`, `SyndicationTarget` | Auto-sync menus to speisekarte.de, Google Business, TripAdvisor |
+| Feature                           | Domain | Entities Involved                             | Description                                                        |
+| --------------------------------- | ------ | --------------------------------------------- | ------------------------------------------------------------------ |
+| Reservation System                | D      | `Reservation`, `ReservationStatus` (3 states) | CONFIRMED → SEATED → COMPLETED                                     |
+| Digital Menu Management           | C      | `MenuItem`, `MenuCategory`, `Recipe`          | Centralized menu with categories, pricing, availability, allergens |
+| Menu Syndication to Third Parties | C      | `MenuSyndication`, `SyndicationTarget`        | Auto-sync menus to speisekarte.de, Google Business, TripAdvisor    |
 
 ### Sponsor: DEHOGA (Industry Association & Jury)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Fachkräftemangel Solution | A | `TrainingModule`, `StaffProgress` | AI-generated onboarding reduces time-to-productivity for new hires |
-| Waste Reduction | B | `StockLog(WASTE)`, `ConsumptionTrend` | Track waste per shift, per product. Identify waste patterns. |
-| Sustainability Metrics | B | Waste Ratio = `WASTE / (MENU_DEPLETION + WASTE)` | Sustainability dashboard with concrete waste-to-usage ratios |
-| Affordable Digital Tool | — | Architecture decision: open-source, free-tier hosting | No per-seat licensing. Free to deploy. |
-| Multi-Venue Scalability | A | `Venue` entity, all entities linked via `venueId` | "Deploy across Stuttgart" — every entity is venue-scoped |
+| Feature                   | Domain | Entities Involved                                     | Description                                                        |
+| ------------------------- | ------ | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| Fachkräftemangel Solution | A      | `TrainingModule`, `StaffProgress`                     | AI-generated onboarding reduces time-to-productivity for new hires |
+| Waste Reduction           | B      | `StockLog(WASTE)`, `ConsumptionTrend`                 | Track waste per shift, per product. Identify waste patterns.       |
+| Sustainability Metrics    | B      | Waste Ratio = `WASTE / (MENU_DEPLETION + WASTE)`      | Sustainability dashboard with concrete waste-to-usage ratios       |
+| Affordable Digital Tool   | —      | Architecture decision: open-source, free-tier hosting | No per-seat licensing. Free to deploy.                             |
+| Multi-Venue Scalability   | A      | `Venue` entity, all entities linked via `venueId`     | "Deploy across Stuttgart" — every entity is venue-scoped           |
 
 ### Sponsor: Mellow Rush (Botanical Boosters)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| NA Drink Menu Category | C | `MenuCategory.BOTANICAL_BOOSTER`, `MenuItem(isAlcoholFree=true)` | First-class alcohol-free category in digital menu |
-| Botanical Product Category | B | `ProductCategory.BOTANICAL_BOOSTER` | Dedicated inventory category for NA ingredients |
+| Feature                    | Domain | Entities Involved                                                | Description                                       |
+| -------------------------- | ------ | ---------------------------------------------------------------- | ------------------------------------------------- |
+| NA Drink Menu Category     | C      | `MenuCategory.BOTANICAL_BOOSTER`, `MenuItem(isAlcoholFree=true)` | First-class alcohol-free category in digital menu |
+| Botanical Product Category | B      | `ProductCategory.BOTANICAL_BOOSTER`                              | Dedicated inventory category for NA ingredients   |
 
 ### Sponsor: visito (Organizer)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Modular Architecture | All | 5 domains, clean package boundaries | Each domain can be extracted to a standalone service |
-| AI Integration Across Platform | E | `PromptTemplate`, `AIUsageLog`, `PromptCategory` | Configurable AI with usage tracking, not just "we called ChatGPT" |
+| Feature                        | Domain | Entities Involved                                | Description                                                       |
+| ------------------------------ | ------ | ------------------------------------------------ | ----------------------------------------------------------------- |
+| Modular Architecture           | All    | 5 domains, clean package boundaries              | Each domain can be extracted to a standalone service              |
+| AI Integration Across Platform | E      | `PromptTemplate`, `AIUsageLog`, `PromptCategory` | Configurable AI with usage tracking, not just "we called ChatGPT" |
 
 ### Sponsor: Geheimtipp Stuttgart (City Magazine)
 
-| Feature | Domain | Entities Involved | Description |
-|---------|--------|-------------------|-------------|
-| Venue Discovery Data | A | `Venue` (name, address, city, type) | Venue data ready for city discovery integration |
-| Menu Syndication | C | `MenuSyndication` | Menu data exportable to discovery platforms |
+| Feature              | Domain | Entities Involved                   | Description                                     |
+| -------------------- | ------ | ----------------------------------- | ----------------------------------------------- |
+| Venue Discovery Data | A      | `Venue` (name, address, city, type) | Venue data ready for city discovery integration |
+| Menu Syndication     | C      | `MenuSyndication`                   | Menu data exportable to discovery platforms     |
 
 ---
 
@@ -820,15 +818,15 @@ GET /api/guests?page=0&size=20&sort=lastVisitAt,desc
 
 ### AI Feature Matrix
 
-| # | AI Feature | Domain | Input | Output | LLM Used | Prompt Category |
-|---|-----------|--------|-------|--------|----------|-----------------|
-| AI-1 | **Staff Onboarding Generator** | A | `Role`, `Venue.type`, existing `TrainingModule`s | AI-generated onboarding path with micro-guides | Claude | `ONBOARDING_GUIDE` |
-| AI-2 | **Menu Description Generator** | C | `MenuItem.name`, `Recipe.preparationNotes`, `RecipeIngredient[]` | Appealing menu description with allergen info | GPT-4o | `MENU_DESCRIPTION` |
-| AI-3 | **Shift Summary Generator** | A | `Shift` data, `Checklist` completion, `StockLog` events, `GuestCheck` totals | End-of-shift summary for handover | Claude | `SHIFT_SUMMARY` |
-| AI-4 | **Waste Pattern Analysis** | B | `StockLog(WASTE)` time series per product | "Your lime waste peaks on Mondays — consider reducing Monday prep by 30%" | Claude | — (inline) |
-| AI-5 | **Waste Pattern Analysis** | B | `StockLog(WASTE)` time series per product | "Your lime waste peaks on Mondays — consider reducing Monday prep by 30%" | Claude | — (inline) |
-| AI-6 | **Shift Summary Generator** | A+E | `Shift` data, `Checklist` completion, `StockLog` events, `GuestCheck` totals | End-of-shift summary for handover or social post | Claude | `SHIFT_SUMMARY` |
-| AI-7 | **Menu Description Generator** | C | `MenuItem.name`, `Recipe.preparationNotes`, `RecipeIngredient[]` | Appealing menu description with allergen info | GPT-4o | `MENU_DESCRIPTION` |
+| #    | AI Feature                     | Domain | Input                                                                        | Output                                                                    | LLM Used | Prompt Category    |
+| ---- | ------------------------------ | ------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------- | ------------------ |
+| AI-1 | **Staff Onboarding Generator** | A      | `Role`, `Venue.type`, existing `TrainingModule`s                             | AI-generated onboarding path with micro-guides                            | Claude   | `ONBOARDING_GUIDE` |
+| AI-2 | **Menu Description Generator** | C      | `MenuItem.name`, `Recipe.preparationNotes`, `RecipeIngredient[]`             | Appealing menu description with allergen info                             | GPT-4o   | `MENU_DESCRIPTION` |
+| AI-3 | **Shift Summary Generator**    | A      | `Shift` data, `Checklist` completion, `StockLog` events, `GuestCheck` totals | End-of-shift summary for handover                                         | Claude   | `SHIFT_SUMMARY`    |
+| AI-4 | **Waste Pattern Analysis**     | B      | `StockLog(WASTE)` time series per product                                    | "Your lime waste peaks on Mondays — consider reducing Monday prep by 30%" | Claude   | — (inline)         |
+| AI-5 | **Waste Pattern Analysis**     | B      | `StockLog(WASTE)` time series per product                                    | "Your lime waste peaks on Mondays — consider reducing Monday prep by 30%" | Claude   | — (inline)         |
+| AI-6 | **Shift Summary Generator**    | A+E    | `Shift` data, `Checklist` completion, `StockLog` events, `GuestCheck` totals | End-of-shift summary for handover or social post                          | Claude   | `SHIFT_SUMMARY`    |
+| AI-7 | **Menu Description Generator** | C      | `MenuItem.name`, `Recipe.preparationNotes`, `RecipeIngredient[]`             | Appealing menu description with allergen info                             | GPT-4o   | `MENU_DESCRIPTION` |
 
 ### AI Architecture Detail
 
@@ -885,14 +883,14 @@ GET /api/guests?page=0&size=20&sort=lastVisitAt,desc
 
 ### Why This AI Architecture Wins
 
-| What Others Build | What KesselOps Has |
-|---|---|
-| Hardcoded prompts | `PromptTemplate` per venue per use case — configurable in DB |
-| One AI feature (chatbot) | **7 AI features** across 5 domains |
-| No tracking | `AIUsageLog` with token count, latency, acceptance rate |
-| English-only | `language` field in PromptTemplate — German/English/any |
-| Same tone everywhere | `toneOfVoice` per venue — casual bar ≠ fine dining |
-| Black box | Full audit trail: who requested, what prompt, what model, how much it cost |
+| What Others Build        | What KesselOps Has                                                         |
+| ------------------------ | -------------------------------------------------------------------------- |
+| Hardcoded prompts        | `PromptTemplate` per venue per use case — configurable in DB               |
+| One AI feature (chatbot) | **7 AI features** across 5 domains                                         |
+| No tracking              | `AIUsageLog` with token count, latency, acceptance rate                    |
+| English-only             | `language` field in PromptTemplate — German/English/any                    |
+| Same tone everywhere     | `toneOfVoice` per venue — casual bar ≠ fine dining                         |
+| Black box                | Full audit trail: who requested, what prompt, what model, how much it cost |
 
 ---
 
@@ -930,7 +928,7 @@ cd backend
 export ANTHROPIC_API_KEY=sk-ant-xxx
 
 # Build & run
-./gradlew bootRun --args='--spring.profiles.active=dev'
+./mvnw spring-boot:run -pl monolith -am -Dspring-boot.run.profiles=dev
 
 # Verify
 curl http://localhost:8080/actuator/health
@@ -963,7 +961,7 @@ open http://localhost:3000
 ```bash
 # Flyway runs automatically on boot, but for demo data:
 cd backend
-./gradlew flywayMigrate
+./mvnw flyway:migrate -pl monolith
 
 # Or manually:
 psql -U kesselops -d kesselops -f infra/scripts/seed-demo-data.sql
@@ -986,21 +984,21 @@ vercel --prod
 
 ## Architecture Decision Records (ADRs)
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| ADR-1 | Modular monolith over microservices | 3-day hackathon: single JVM, single deploy, zero inter-service overhead |
-| ADR-2 | PostgreSQL over MongoDB | Relational data (shifts→users, orders→products). JSONB column for flexible fields (preferences, allergens) |
-| ADR-3 | Next.js App Router over Pages Router | Server components for SEO-irrelevant dashboard, streaming SSR, better layouts |
-| ADR-4 | Spring AI over raw HTTP to LLM | Official Spring integration, retries, streaming, model abstraction |
-| ADR-5 | JWT over session cookies | Stateless backend, easy multi-client support, WebSocket auth |
-| ADR-6 | Flyway over Liquibase | SQL-based migrations, simpler for hackathon speed |
-| ADR-7 | Zustand over Redux | 2KB vs 42KB, simpler API, sufficient for dashboard state |
-| ADR-8 | shadcn/ui over Material UI | Copy-paste components (own code), Tailwind-native, hackathon-fast |
-| ADR-9 | 5 DB schemas in 1 database over 5 databases | Simplicity + cross-domain joins possible in monolith phase |
-| ADR-10 | Railway over AWS/GCP | One-click deploy, free PostgreSQL, zero DevOps for hackathon |
-| ADR-11 | `GuestCheck` ≠ `Order` | Order = money OUT (to supplier). GuestCheck = money IN (from guest). Both are needed for COGS calculation. |
-| ADR-12 | Prompt templates in DB over code | Venues customize AI personality without code changes. Shows architectural maturity. |
+| #      | Decision                                    | Rationale                                                                                                  |
+| ------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| ADR-1  | Modular monolith over microservices         | 3-day hackathon: single JVM, single deploy, zero inter-service overhead                                    |
+| ADR-2  | PostgreSQL over MongoDB                     | Relational data (shifts→users, orders→products). JSONB column for flexible fields (preferences, allergens) |
+| ADR-3  | Next.js App Router over Pages Router        | Server components for SEO-irrelevant dashboard, streaming SSR, better layouts                              |
+| ADR-4  | Spring AI over raw HTTP to LLM              | Official Spring integration, retries, streaming, model abstraction                                         |
+| ADR-5  | JWT over session cookies                    | Stateless backend, easy multi-client support, WebSocket auth                                               |
+| ADR-6  | Flyway over Liquibase                       | SQL-based migrations, simpler for hackathon speed                                                          |
+| ADR-7  | Zustand over Redux                          | 2KB vs 42KB, simpler API, sufficient for dashboard state                                                   |
+| ADR-8  | shadcn/ui over Material UI                  | Copy-paste components (own code), Tailwind-native, hackathon-fast                                          |
+| ADR-9  | 5 DB schemas in 1 database over 5 databases | Simplicity + cross-domain joins possible in monolith phase                                                 |
+| ADR-10 | Railway over AWS/GCP                        | One-click deploy, free PostgreSQL, zero DevOps for hackathon                                               |
+| ADR-11 | `GuestCheck` ≠ `Order`                      | Order = money OUT (to supplier). GuestCheck = money IN (from guest). Both are needed for COGS calculation. |
+| ADR-12 | Prompt templates in DB over code            | Venues customize AI personality without code changes. Shows architectural maturity.                        |
 
 ---
 
-*KesselOps: 5 domains · 25 entities · 4 AI features · 3 days to win.*
+_KesselOps: 5 domains · 25 entities · 4 AI features · 3 days to win._
