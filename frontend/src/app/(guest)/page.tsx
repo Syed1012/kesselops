@@ -318,12 +318,12 @@ function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
           >
-            <Link href="/register" className="w-full sm:w-auto">
+            <Link href="/venue" className="w-full sm:w-auto">
               <Button 
                 size="lg" 
                 className="w-full sm:w-auto text-base px-10 h-14 bg-white text-[#0a0f1a] hover:bg-slate-200 transition-all font-bold tracking-wide"
               >
-                Get Started
+                View Live Venue
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
@@ -534,7 +534,6 @@ function Footer() {
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-[#0a0f1a] selection:bg-violet-500/30 selection:text-white">
-      <Navbar />
       <HeroSection />
       <FeaturesSection />
       <CTASection />
