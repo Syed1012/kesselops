@@ -36,7 +36,7 @@ public class ShiftController {
     public ResponseEntity<ApiResponse<ShiftResponse>> createShift(@Valid @RequestBody CreateShiftRequest request) {
         try {
             ShiftService.CreateShiftRequest serviceRequest = new ShiftService.CreateShiftRequest(
-                    request.venueId(), request.startTime(), request.endTime(), request.type(), request.notes()
+                    request.venueId(), request.userId(), request.startTime(), request.endTime(), request.type(), request.notes()
             );
             Shift shift = shiftService.createShift(serviceRequest);
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toShiftResponse(shift)));
@@ -121,10 +121,25 @@ public class ShiftController {
         }
     }
 
+    /**
+     * DELETE /api/shifts/{id} - Delete a shift
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> deleteShift(@PathVariable Long id) {
+        try {
+            shiftService.deleteShift(id);
+            return ResponseEntity.ok(ApiResponse.success(null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     private ShiftResponse toShiftResponse(Shift shift) {
         return new ShiftResponse(
                 shift.getId(),
                 shift.getVenueId(),
+                shift.getUserId(),
                 shift.getStartTime(),
                 shift.getEndTime(),
                 shift.getType(),
@@ -138,6 +153,7 @@ public class ShiftController {
     // DTOs
     public record CreateShiftRequest(
             @NotNull Long venueId,
+            Long userId,
             @NotNull Instant startTime,
             @NotNull Instant endTime,
             @NotNull ShiftType type,
@@ -154,6 +170,7 @@ public class ShiftController {
     public record ShiftResponse(
             Long id,
             Long venueId,
+            Long userId,
             Instant startTime,
             Instant endTime,
             ShiftType type,

@@ -7,6 +7,7 @@ package de.kesselops.shared.model;
 public enum Role {
     OWNER,
     MANAGER,
+    CHEF,
     STAFF,
     TRAINEE
 }

@@ -18,6 +18,9 @@ public class Shift {
     @Column(name = "venue_id", nullable = false)
     private Long venueId;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(nullable = false)
     private Instant startTime;
 
@@ -64,6 +67,14 @@ public class Shift {
 
     public void setVenueId(Long venueId) {
         this.venueId = venueId;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public Instant getStartTime() {

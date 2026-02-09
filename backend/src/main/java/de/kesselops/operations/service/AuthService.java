@@ -104,6 +104,72 @@ public class AuthService {
         return toUserSummary(user);
     }
 
+    /**
+     * Invite a new user with generated credentials.
+     */
+    @Transactional
+    public InviteResponse inviteUser(InviteRequest request, User invitedBy) {
+        // Validation
+        if (request.role() == Role.OWNER) {
+            throw new IllegalArgumentException("Cannot invite another Owner");
+        }
+        if (invitedBy.getRole() == Role.MANAGER && request.role() == Role.MANAGER) {
+            throw new IllegalArgumentException("Managers cannot invite other Managers");
+        }
+
+        // Get venue name for email generation
+        String venueName = "venue";
+        // In a real app we'd fetch the venue name, but for now we'll use a placeholder or part of the inviter's email domain if possible
+        // Let's rely on a consistent format: firstInitial.lastName@venueId.kesselops.de for uniqueness
+        // Or better: generate unique email with retry
+        
+        String baseEmail = generateBaseEmail(request.firstName(), request.lastName(), invitedBy.getVenueId());
+        String finalEmail = baseEmail;
+        int counter = 1;
+        
+        while (userRepository.existsByEmail(finalEmail)) {
+            finalEmail = baseEmail.replace("@", counter + "@");
+            counter++;
+        }
+
+        String password = generateRandomPassword();
+
+        User user = new User();
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        user.setEmail(finalEmail);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setRole(request.role());
+        user.setVenueId(invitedBy.getVenueId());
+        user.setIsActive(true);
+
+        User savedUser = userRepository.save(user);
+
+        return new InviteResponse(
+                finalEmail,
+                password,
+                toUserSummary(savedUser)
+        );
+    }
+
+    private String generateBaseEmail(String firstName, String lastName, Long venueId) {
+        String cleanFirst = firstName.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        String cleanLast = lastName.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        return String.format("%s.%s@kesselops.de", 
+                cleanFirst.isEmpty() ? "user" : cleanFirst.substring(0, 1), 
+                cleanLast.isEmpty() ? "user" : cleanLast);
+    }
+
+    private String generateRandomPassword() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$";
+        StringBuilder sb = new StringBuilder();
+        java.util.Random random = new java.security.SecureRandom();
+        for (int i = 0; i < 8; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
     private UserSummaryResponse toUserSummary(User user) {
         return new UserSummaryResponse(
                 user.getId(),

@@ -28,16 +28,9 @@ public class ShiftService {
      */
     @Transactional
     public Shift createShift(CreateShiftRequest request) {
-        // Check for overlapping shifts
-        List<Shift> overlapping = shiftRepository.findOverlappingShifts(
-                request.venueId(), request.type(), request.startTime(), request.endTime()
-        );
-        if (!overlapping.isEmpty()) {
-            throw new IllegalStateException("Overlapping shift exists for this type and time");
-        }
-
         Shift shift = new Shift();
         shift.setVenueId(request.venueId());
+        shift.setUserId(request.userId());
         shift.setStartTime(request.startTime());
         shift.setEndTime(request.endTime());
         shift.setType(request.type());
@@ -101,6 +94,15 @@ public class ShiftService {
     }
 
     /**
+     * Delete a shift.
+     */
+    @Transactional
+    public void deleteShift(Long id) {
+        Shift shift = getShift(id);
+        shiftRepository.delete(shift);
+    }
+
+    /**
      * Get active shift for a venue.
      */
     public Shift getActiveShift(Long venueId) {
@@ -111,6 +113,7 @@ public class ShiftService {
     // DTOs
     public record CreateShiftRequest(
             Long venueId,
+            Long userId,
             Instant startTime,
             Instant endTime,
             ShiftType type,

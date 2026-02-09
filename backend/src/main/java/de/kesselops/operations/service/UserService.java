@@ -87,6 +87,32 @@ public class UserService {
         userRepository.save(user);
     }
 
+    /**
+     * Permanently delete a user.
+     */
+    @Transactional
+    public void deleteUser(Long id, User currentUser) {
+        User userToDelete = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        
+        // Cannot delete yourself
+        if (userToDelete.getId().equals(currentUser.getId())) {
+            throw new IllegalArgumentException("Cannot delete yourself");
+        }
+        
+        // Cannot delete an owner
+        if (userToDelete.getRole() == Role.OWNER) {
+            throw new IllegalArgumentException("Cannot delete an Owner");
+        }
+        
+        // Managers cannot delete other managers
+        if (currentUser.getRole() == Role.MANAGER && userToDelete.getRole() == Role.MANAGER) {
+            throw new IllegalArgumentException("Managers cannot delete other Managers");
+        }
+        
+        userRepository.delete(userToDelete);
+    }
+
     private UserSummaryResponse toUserSummary(User user) {
         return new UserSummaryResponse(
                 user.getId(),

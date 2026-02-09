@@ -97,6 +97,23 @@ public class UserController {
         }
     }
 
+    /**
+     * DELETE /api/users/{id} - Permanently delete a user
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        try {
+            userService.deleteUser(id, currentUser);
+            return ResponseEntity.ok(ApiResponse.success(null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     // DTO for update request
     public record UpdateUserRequest(String firstName, String lastName, String phone, Role role) {}
 }

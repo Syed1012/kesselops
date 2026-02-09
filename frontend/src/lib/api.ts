@@ -7,7 +7,7 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: 'OWNER' | 'MANAGER' | 'STAFF' | 'TRAINEE';
+  role: 'OWNER' | 'MANAGER' | 'CHEF' | 'STAFF' | 'TRAINEE';
   venueId: number | null;
   isActive: boolean;
   createdAt: string;
@@ -39,6 +39,7 @@ export interface Venue {
 export interface Shift {
   id: number;
   venueId: number;
+  userId: number | null;
   startTime: string;
   endTime: string;
   type: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
@@ -194,11 +195,21 @@ export async function refreshToken(): Promise<boolean> {
 
 export async function logout(): Promise<void> {
   const refreshTokenValue = getStoredRefreshToken();
-  if (refreshTokenValue) {
-    await fetchApi('/auth/logout', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken: refreshTokenValue }),
-    });
+  const token = getStoredToken();
+  
+  if (refreshTokenValue && token) {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ refreshToken: refreshTokenValue }),
+      });
+    } catch {
+      // Ignore errors on logout
+    }
   }
   clearTokens();
 }
@@ -240,8 +251,15 @@ export async function createVenue(data: {
 }
 
 // Shift API
-export async function getShifts(venueId: number): Promise<ApiResponse<{ content: Shift[] }>> {
-  return fetchApi<{ content: Shift[] }>(`/shifts?venueId=${venueId}`);
+export async function getShifts(
+  venueId: number, 
+  from?: string, 
+  to?: string
+): Promise<ApiResponse<{ content: Shift[] }>> {
+  let query = `venueId=${venueId}`;
+  if (from) query += `&from=${encodeURIComponent(from)}`;
+  if (to) query += `&to=${encodeURIComponent(to)}`;
+  return fetchApi<{ content: Shift[] }>(`/shifts?${query}`);
 }
 
 export async function getShift(id: number): Promise<ApiResponse<Shift>> {
@@ -250,6 +268,7 @@ export async function getShift(id: number): Promise<ApiResponse<Shift>> {
 
 export async function createShift(data: {
   venueId: number;
+  userId?: number;
   startTime: string;
   endTime: string;
   type: string;
@@ -261,6 +280,10 @@ export async function createShift(data: {
   });
 }
 
+export async function deleteShift(id: number): Promise<ApiResponse<void>> {
+  return fetchApi<void>(`/shifts/${id}`, { method: 'DELETE' });
+}
+
 export async function startShift(id: number): Promise<ApiResponse<Shift>> {
   return fetchApi<Shift>(`/shifts/${id}/start`, { method: 'POST' });
 }
@@ -268,3 +291,28 @@ export async function startShift(id: number): Promise<ApiResponse<Shift>> {
 export async function endShift(id: number): Promise<ApiResponse<Shift>> {
   return fetchApi<Shift>(`/shifts/${id}/end`, { method: 'POST' });
 }
+
+// Invite API
+export interface InviteRequest {
+  firstName: string;
+  lastName: string;
+  role: 'MANAGER' | 'CHEF' | 'STAFF' | 'TRAINEE';
+}
+
+export interface InviteResponse {
+  email: string;
+  password: string;
+  user: User;
+}
+
+export async function inviteUser(data: InviteRequest): Promise<ApiResponse<InviteResponse>> {
+  return fetchApi<InviteResponse>('/auth/invite', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteUser(id: number): Promise<ApiResponse<void>> {
+  return fetchApi<void>(`/users/${id}`, { method: 'DELETE' });
+}
+
