@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: kesselops
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+      - org.springframework.ai.autoconfigure.anthropic.AnthropicAutoConfiguration
+  datasource:
+    url: jdbc:postgresql://localhost:5434/kesselops
+    username: kesselops
+    password: kesselops_dev
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# JWT Configuration
+app:
+  jwt:
+    secret: ${JWT_SECRET:your-super-secret-jwt-key-that-should-be-at-least-256-bits}
+    access-token-expiry: 3600000 # 1 hour in ms
+    refresh-token-expiry: 604800000 # 7 days in ms
+
+server:
+  port: 8080
+
+logging:
+  level:
+    de.kesselops: DEBUG
+    org.springframework.security: INFO

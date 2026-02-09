@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -17,13 +17,16 @@ import {
   Bell,
   Building2,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAuth } from "@/lib/auth-context";
 
-import { currentUser, currentVenue, venues, alerts } from "@/lib/mock-data";
+// Keep mock data for venues/alerts (to be replaced with real API later)
+import { currentVenue, venues, alerts } from "@/lib/mock-data";
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -35,7 +38,7 @@ const sidebarItems = [
 ];
 
 // Desktop Sidebar Component
-function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function Sidebar({ collapsed, onToggle, user }: { collapsed: boolean; onToggle: () => void; user: { firstName: string; lastName: string; role: string } | null }) {
   const pathname = usePathname();
 
   return (
@@ -90,13 +93,13 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
       {/* User Section */}
       <div className={cn("p-4 border-t border-border", collapsed && "flex justify-center")}>
         <div className={cn("flex items-center gap-3", collapsed && "flex-col")}>
-          <Avatar fallback={`${currentUser.firstName[0]}${currentUser.lastName[0]}`} />
-          {!collapsed && (
+          <Avatar fallback={user ? `${user.firstName[0]}${user.lastName[0]}` : "?"} />
+          {!collapsed && user && (
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate text-foreground">
-                {currentUser.firstName} {currentUser.lastName}
+                {user.firstName} {user.lastName}
               </p>
-              <p className="text-xs text-muted-foreground truncate">{currentUser.role}</p>
+              <p className="text-xs text-muted-foreground truncate">{user.role}</p>
             </div>
           )}
         </div>
@@ -106,7 +109,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
 }
 
 // Top Header Component
-function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
+function Header({ sidebarCollapsed, user, onLogout }: { sidebarCollapsed: boolean; user: { firstName: string; lastName: string } | null; onLogout: () => void }) {
   const [venueDropdownOpen, setVenueDropdownOpen] = useState(false);
 
   return (
@@ -176,13 +179,19 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
 
         {/* User (Desktop) */}
         <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-border ml-2">
-          <Avatar fallback={`${currentUser.firstName[0]}${currentUser.lastName[0]}`} />
+          <Avatar fallback={user ? `${user.firstName[0]}${user.lastName[0]}` : "?"} />
           <div className="hidden xl:block">
-            <p className="text-sm font-medium text-foreground">{currentUser.firstName}</p>
+            <p className="text-sm font-medium text-foreground">{user?.firstName}</p>
           </div>
         </div>
 
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-muted-foreground hover:text-foreground"
+          onClick={onLogout}
+          title="Logout"
+        >
           <LogOut className="h-5 w-5" />
         </Button>
       </div>
@@ -229,12 +238,40 @@ function MobileTabBar() {
 
 // Main Dashboard Layout
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { user, isLoading, isAuthenticated, logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <Header sidebarCollapsed={sidebarCollapsed} />
+      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} user={user} />
+      <Header sidebarCollapsed={sidebarCollapsed} user={user} onLogout={handleLogout} />
 
       <main
         className={cn(

@@ -2,32 +2,95 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Building2, ArrowRight, Check } from "lucide-react";
+import { Eye, EyeOff, Building2, ArrowRight, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { register, login, createVenue, storeTokens } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
     venueName: "",
-    venueType: "bar",
+    venueType: "BAR",
+    venueAddress: "",
     city: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (step === 1) {
+      // Validate passwords match
+      if (formData.password !== formData.confirmPassword) {
+        toast.error("Passwords don't match");
+        return;
+      }
+      if (formData.password.length < 6) {
+        toast.error("Password must be at least 6 characters");
+        return;
+      }
       setStep(2);
     } else {
-      // TODO: Implement registration
-      console.log("Registration:", formData);
-      window.location.href = "/dashboard";
+      // Register user, then login, then create venue
+      setIsSubmitting(true);
+      
+      try {
+        // Step 1: Register user
+        const registerRes = await register({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+        });
+        
+        if (!registerRes.success) {
+          toast.error(registerRes.error || "Registration failed");
+          setIsSubmitting(false);
+          return;
+        }
+        
+        // Step 2: Login to get tokens
+        const loginRes = await login(formData.email, formData.password);
+        if (!loginRes.success || !loginRes.data) {
+          toast.error("Registration successful but login failed. Please login manually.");
+          router.push("/login");
+          return;
+        }
+        
+        storeTokens(loginRes.data.accessToken, loginRes.data.refreshToken);
+        
+        // Step 3: Create venue
+        const venueRes = await createVenue({
+          name: formData.venueName,
+          address: formData.venueAddress || formData.city,
+          city: formData.city,
+          type: formData.venueType,
+        });
+        
+        if (!venueRes.success) {
+          toast.warning("Account created but venue creation failed. You can create a venue later.");
+        } else {
+          toast.success("Welcome to KesselOps!");
+        }
+        
+        router.push("/dashboard");
+      } catch {
+        toast.error("Registration failed. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -93,7 +156,7 @@ export default function RegisterPage() {
             </CardTitle>
             <CardDescription className="text-slate-400">
               {step === 1
-                ? "Enter your email and create a password"
+                ? "Enter your details and create a password"
                 : "Tell us about your hospitality venue"}
             </CardDescription>
           </CardHeader>
@@ -101,6 +164,39 @@ export default function RegisterPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {step === 1 ? (
                 <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label htmlFor="firstName" className="text-sm font-medium text-slate-300">
+                        First Name
+                      </label>
+                      <Input
+                        id="firstName"
+                        type="text"
+                        placeholder="Max"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="lastName" className="text-sm font-medium text-slate-300">
+                        Last Name
+                      </label>
+                      <Input
+                        id="lastName"
+                        type="text"
+                        placeholder="Müller"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <label htmlFor="email" className="text-sm font-medium text-slate-300">
                       Email
@@ -113,6 +209,7 @@ export default function RegisterPage() {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
 
@@ -129,6 +226,7 @@ export default function RegisterPage() {
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                         className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 pr-10 focus:border-violet-500"
                         required
+                        disabled={isSubmitting}
                       />
                       <button
                         type="button"
@@ -152,6 +250,7 @@ export default function RegisterPage() {
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </>
@@ -169,6 +268,7 @@ export default function RegisterPage() {
                       onChange={(e) => setFormData({ ...formData, venueName: e.target.value })}
                       className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
 
@@ -181,13 +281,30 @@ export default function RegisterPage() {
                       value={formData.venueType}
                       onChange={(e) => setFormData({ ...formData, venueType: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-[#2a2f4a] bg-[#1a1f3a] px-3 py-2 text-sm text-white ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                      disabled={isSubmitting}
                     >
-                      <option value="bar">Bar / Cocktail Bar</option>
-                      <option value="restaurant">Restaurant</option>
-                      <option value="cafe">Café</option>
-                      <option value="club">Club / Nightlife</option>
-                      <option value="hotel">Hotel</option>
+                      <option value="BAR">Bar / Cocktail Bar</option>
+                      <option value="RESTAURANT">Restaurant</option>
+                      <option value="CAFE">Café</option>
+                      <option value="CLUB">Club / Nightlife</option>
+                      <option value="HOTEL">Hotel</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="venueAddress" className="text-sm font-medium text-slate-300">
+                      Address
+                    </label>
+                    <Input
+                      id="venueAddress"
+                      type="text"
+                      placeholder="Theodor-Heuss-Straße 4"
+                      value={formData.venueAddress}
+                      onChange={(e) => setFormData({ ...formData, venueAddress: e.target.value })}
+                      className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
+                      required
+                      disabled={isSubmitting}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -202,6 +319,7 @@ export default function RegisterPage() {
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </>
@@ -214,12 +332,23 @@ export default function RegisterPage() {
                     variant="outline"
                     className="flex-1 border-[#2a2f4a] text-slate-300 hover:bg-[#1a1f3a]"
                     onClick={() => setStep(1)}
+                    disabled={isSubmitting}
                   >
                     Back
                   </Button>
                 )}
-                <Button type="submit" className="flex-1 bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700" size="lg">
-                  {step === 1 ? (
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700" 
+                  size="lg"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : step === 1 ? (
                     <>
                       Next
                       <ArrowRight className="ml-2 h-4 w-4" />

@@ -1,0 +1,270 @@
+// API Service for KesselOps Backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+// Types
+export interface User {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: 'OWNER' | 'MANAGER' | 'STAFF' | 'TRAINEE';
+  venueId: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  user: User;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+export interface Venue {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  type: string;
+  timezone: string;
+  createdAt: string;
+}
+
+export interface Shift {
+  id: number;
+  venueId: number;
+  startTime: string;
+  endTime: string;
+  type: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
+  notes: string | null;
+  isActive: boolean;
+  durationHours: number;
+  createdAt: string;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T | null;
+  error: string | null;
+}
+
+// Token management
+const TOKEN_KEY = 'kesselops_access_token';
+const REFRESH_TOKEN_KEY = 'kesselops_refresh_token';
+
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getStoredRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function storeTokens(accessToken: string, refreshToken: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function clearTokens(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+// Fetch wrapper with auth
+async function fetchApi<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> {
+  const token = getStoredToken();
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+  
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (response.status === 401) {
+      // Try to refresh token
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        // Retry with new token
+        const newToken = getStoredToken();
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          headers,
+        });
+        return retryResponse.json();
+      } else {
+        clearTokens();
+        window.location.href = '/login';
+        return { success: false, data: null, error: 'Session expired' };
+      }
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { 
+        success: false, 
+        data: null, 
+        error: errorData.error || `HTTP ${response.status}` 
+      };
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return { 
+      success: false, 
+      data: null, 
+      error: error instanceof Error ? error.message : 'Network error' 
+    };
+  }
+}
+
+// Auth API
+export async function login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
+  const response = await fetchApi<LoginResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  
+  if (response.success && response.data) {
+    storeTokens(response.data.accessToken, response.data.refreshToken);
+  }
+  
+  return response;
+}
+
+export async function register(data: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone?: string;
+}): Promise<ApiResponse<User>> {
+  return fetchApi<User>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function refreshToken(): Promise<boolean> {
+  const refreshTokenValue = getStoredRefreshToken();
+  if (!refreshTokenValue) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refreshTokenValue }),
+    });
+
+    if (!response.ok) return false;
+
+    const data: ApiResponse<TokenPair> = await response.json();
+    if (data.success && data.data) {
+      storeTokens(data.data.accessToken, data.data.refreshToken);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function logout(): Promise<void> {
+  const refreshTokenValue = getStoredRefreshToken();
+  if (refreshTokenValue) {
+    await fetchApi('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: refreshTokenValue }),
+    });
+  }
+  clearTokens();
+}
+
+export async function getCurrentUser(): Promise<ApiResponse<User>> {
+  return fetchApi<User>('/auth/me');
+}
+
+// User API
+export async function getUsers(venueId?: number): Promise<ApiResponse<User[]>> {
+  const query = venueId ? `?venueId=${venueId}` : '';
+  return fetchApi<User[]>(`/users${query}`);
+}
+
+export async function getUser(id: number): Promise<ApiResponse<User>> {
+  return fetchApi<User>(`/users/${id}`);
+}
+
+// Venue API
+export async function getVenues(): Promise<ApiResponse<Venue[]>> {
+  return fetchApi<Venue[]>('/venues');
+}
+
+export async function getVenue(id: number): Promise<ApiResponse<Venue>> {
+  return fetchApi<Venue>(`/venues/${id}`);
+}
+
+export async function createVenue(data: {
+  name: string;
+  address: string;
+  city: string;
+  type: string;
+  timezone?: string;
+}): Promise<ApiResponse<Venue>> {
+  return fetchApi<Venue>('/venues', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Shift API
+export async function getShifts(venueId: number): Promise<ApiResponse<{ content: Shift[] }>> {
+  return fetchApi<{ content: Shift[] }>(`/shifts?venueId=${venueId}`);
+}
+
+export async function getShift(id: number): Promise<ApiResponse<Shift>> {
+  return fetchApi<Shift>(`/shifts/${id}`);
+}
+
+export async function createShift(data: {
+  venueId: number;
+  startTime: string;
+  endTime: string;
+  type: string;
+  notes?: string;
+}): Promise<ApiResponse<Shift>> {
+  return fetchApi<Shift>('/shifts', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function startShift(id: number): Promise<ApiResponse<Shift>> {
+  return fetchApi<Shift>(`/shifts/${id}/start`, { method: 'POST' });
+}
+
+export async function endShift(id: number): Promise<ApiResponse<Shift>> {
+  return fetchApi<Shift>(`/shifts/${id}/end`, { method: 'POST' });
+}

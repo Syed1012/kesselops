@@ -2,24 +2,59 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/lib/auth-context";
+import { toast } from "sonner";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login, isLoading: authLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement authentication
-    console.log("Login attempt:", { email, password });
-    // For demo, redirect to dashboard
-    window.location.href = "/dashboard";
+    setIsSubmitting(true);
+
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        toast.success("Welcome back!");
+        router.push("/dashboard");
+      } else {
+        toast.error(result.error || "Invalid credentials");
+      }
+    } catch {
+      toast.error("Login failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  // For demo: quick login with demo credentials
+  const handleDemoLogin = async (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setIsSubmitting(true);
+    
+    const result = await login(demoEmail, demoPass);
+    if (result.success) {
+      toast.success("Welcome back!");
+      router.push("/dashboard");
+    } else {
+      toast.error(result.error || "Demo login failed - user may not exist yet");
+    }
+    setIsSubmitting(false);
+  };
+
+  const isLoading = isSubmitting || authLoading;
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#0a0f1a] p-6">
@@ -78,6 +113,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 focus:border-violet-500"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -94,6 +130,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="bg-[#1a1f3a] border-[#2a2f4a] text-white placeholder:text-slate-500 pr-10 focus:border-violet-500"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
@@ -115,9 +152,23 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700" size="lg">
-                <LogIn className="mr-2 h-4 w-4" />
-                Sign In
+              <Button 
+                type="submit" 
+                className="w-full bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700" 
+                size="lg"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Sign In
+                  </>
+                )}
               </Button>
             </form>
 
@@ -132,24 +183,34 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Demo Credentials */}
+        {/* Demo Credentials - Click to auto-fill and login */}
         <motion.div
           className="mt-6 p-4 bg-[#0f1629]/50 border border-[#1e293b] rounded-lg"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <p className="text-xs text-slate-500 text-center mb-2">Demo Credentials</p>
+          <p className="text-xs text-slate-500 text-center mb-2">Demo Credentials (click to login)</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="text-slate-400">
+            <button
+              type="button"
+              onClick={() => handleDemoLogin("owner@oscho.de", "demo123")}
+              className="text-left text-slate-400 hover:text-violet-400 transition-colors"
+              disabled={isLoading}
+            >
               <span className="text-slate-500">Owner:</span> owner@oscho.de
-            </div>
+            </button>
             <div className="text-slate-400">
               <span className="text-slate-500">Pass:</span> demo123
             </div>
-            <div className="text-slate-400">
+            <button
+              type="button"
+              onClick={() => handleDemoLogin("staff@oscho.de", "demo123")}
+              className="text-left text-slate-400 hover:text-violet-400 transition-colors"
+              disabled={isLoading}
+            >
               <span className="text-slate-500">Staff:</span> staff@oscho.de
-            </div>
+            </button>
             <div className="text-slate-400">
               <span className="text-slate-500">Pass:</span> demo123
             </div>

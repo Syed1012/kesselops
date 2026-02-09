@@ -1,0 +1,102 @@
+package de.kesselops.operations.controller;
+
+import de.kesselops.operations.model.User;
+import de.kesselops.operations.service.UserService;
+import de.kesselops.shared.dto.ApiResponse;
+import de.kesselops.shared.dto.UserSummaryResponse;
+import de.kesselops.shared.model.Role;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/**
+ * REST controller for user management.
+ */
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    /**
+     * GET /api/users - List all users (filtered by role permissions)
+     */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<UserSummaryResponse>>> listUsers(
+            @AuthenticationPrincipal User currentUser,
+            @RequestParam(required = false) Long venueId
+    ) {
+        List<UserSummaryResponse> users = userService.listUsers(currentUser, venueId);
+        return ResponseEntity.ok(ApiResponse.success(users));
+    }
+
+    /**
+     * GET /api/users/{id} - Get a single user
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<UserSummaryResponse>> getUser(@PathVariable Long id) {
+        try {
+            UserSummaryResponse user = userService.getUser(id);
+            return ResponseEntity.ok(ApiResponse.success(user));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * PUT /api/users/{id} - Update user details
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<UserSummaryResponse>> updateUser(
+            @PathVariable Long id,
+            @RequestBody UpdateUserRequest request
+    ) {
+        try {
+            UserSummaryResponse user = userService.updateUser(
+                    id, request.firstName(), request.lastName(), request.phone(), request.role()
+            );
+            return ResponseEntity.ok(ApiResponse.success(user));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * PATCH /api/users/{id}/deactivate - Deactivate a user
+     */
+    @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> deactivateUser(@PathVariable Long id) {
+        try {
+            userService.deactivateUser(id);
+            return ResponseEntity.ok(ApiResponse.success(null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * PATCH /api/users/{id}/activate - Activate a user
+     */
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> activateUser(@PathVariable Long id) {
+        try {
+            userService.activateUser(id);
+            return ResponseEntity.ok(ApiResponse.success(null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    // DTO for update request
+    public record UpdateUserRequest(String firstName, String lastName, String phone, Role role) {}
+}
