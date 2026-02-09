@@ -250,6 +250,19 @@ export async function createVenue(data: {
   });
 }
 
+export async function updateVenue(id: number, data: {
+  name: string;
+  address: string;
+  city: string;
+  type: string;
+  timezone?: string;
+}): Promise<ApiResponse<Venue>> {
+  return fetchApi<Venue>(`/venues/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 // Shift API
 export async function getShifts(
   venueId: number, 

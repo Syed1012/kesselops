@@ -425,20 +425,105 @@ export default function SchedulePage() {
                         />
                       ))}
 
-                      {/* Shift blocks overlaid */}
-                      {shifts
-                        .filter((s) => getShiftDay(s) === d.fullDate)
-                        .map((shift) => {
+                      {/* Shift blocks overlaid - with overlap handling */}
+                      {(() => {
+                        const dayShifts = shifts.filter(
+                          (s) => getShiftDay(s) === d.fullDate
+                        );
+
+                        // Calculate overlap columns for side-by-side rendering
+                        // Sort by start time
+                        const sorted = [...dayShifts].sort(
+                          (a, b) =>
+                            new Date(a.startTime).getTime() -
+                            new Date(b.startTime).getTime()
+                        );
+
+                        // Assign column index & total columns for each shift
+                        const layout: Map<
+                          number,
+                          { colIndex: number; totalCols: number }
+                        > = new Map();
+
+                        // Track which columns are occupied at each point
+                        const columns: { endTime: number; shiftId: number }[] =
+                          [];
+
+                        for (const shift of sorted) {
+                          const shiftStart = new Date(
+                            shift.startTime
+                          ).getTime();
+                          const shiftEnd = new Date(shift.endTime).getTime();
+
+                          // Find the first available column
+                          let placed = false;
+                          for (let c = 0; c < columns.length; c++) {
+                            if (columns[c].endTime <= shiftStart) {
+                              // This column is free
+                              columns[c] = {
+                                endTime: shiftEnd,
+                                shiftId: shift.id,
+                              };
+                              layout.set(shift.id, {
+                                colIndex: c,
+                                totalCols: 0,
+                              }); // totalCols set later
+                              placed = true;
+                              break;
+                            }
+                          }
+                          if (!placed) {
+                            // Need a new column
+                            layout.set(shift.id, {
+                              colIndex: columns.length,
+                              totalCols: 0,
+                            });
+                            columns.push({
+                              endTime: shiftEnd,
+                              shiftId: shift.id,
+                            });
+                          }
+                        }
+
+                        // Now determine totalCols for each shift by finding
+                        // how many concurrent shifts overlap with it
+                        for (const shift of sorted) {
+                          const shiftStart = new Date(
+                            shift.startTime
+                          ).getTime();
+                          const shiftEnd = new Date(shift.endTime).getTime();
+
+                          let maxConcurrent = 1;
+                          for (const other of sorted) {
+                            if (other.id === shift.id) continue;
+                            const otherStart = new Date(
+                              other.startTime
+                            ).getTime();
+                            const otherEnd = new Date(
+                              other.endTime
+                            ).getTime();
+
+                            // Check overlap
+                            if (otherStart < shiftEnd && otherEnd > shiftStart) {
+                              maxConcurrent++;
+                            }
+                          }
+
+                          const info = layout.get(shift.id)!;
+                          info.totalCols = Math.max(
+                            maxConcurrent,
+                            info.colIndex + 1
+                          );
+                        }
+
+                        return sorted.map((shift) => {
                           const pos = getShiftPosition(shift);
                           const colors =
                             shiftTypeColors[shift.type] ||
                             shiftTypeColors.EVENING;
-
-                          // Find the staff member for this shift
                           const member = staff.find(
                             (m) => m.id === shift.userId
                           );
-
                           const startTime = new Date(
                             shift.startTime
                           ).toLocaleTimeString("en-US", {
@@ -454,14 +539,23 @@ export default function SchedulePage() {
                             hour12: false,
                           });
 
+                          const info = layout.get(shift.id) || {
+                            colIndex: 0,
+                            totalCols: 1,
+                          };
+                          const widthPercent = 100 / info.totalCols;
+                          const leftPercent = info.colIndex * widthPercent;
+
                           return (
                             <motion.div
                               key={shift.id}
-                              className={`absolute left-1 right-1 rounded-md border ${colors.border} bg-gradient-to-b ${colors.gradient} backdrop-blur-sm cursor-pointer overflow-hidden group z-10`}
+                              className={`absolute rounded-md border ${colors.border} bg-gradient-to-b ${colors.gradient} backdrop-blur-sm cursor-pointer overflow-hidden group z-10`}
                               style={{
                                 top: pos.top,
                                 height: pos.height,
                                 minHeight: "28px",
+                                left: `calc(${leftPercent}% + 2px)`,
+                                width: `calc(${widthPercent}% - 4px)`,
                               }}
                               initial={{ opacity: 0, scale: 0.95 }}
                               animate={{ opacity: 1, scale: 1 }}
@@ -472,28 +566,28 @@ export default function SchedulePage() {
                                 setDeleteModalOpen(true);
                               }}
                             >
-                              <div className="p-1.5 h-full flex flex-col justify-between">
-                                <div>
+                              <div className="p-1 h-full flex flex-col justify-between overflow-hidden">
+                                <div className="min-w-0">
                                   <p
-                                    className={`text-xs font-semibold ${colors.text} truncate`}
+                                    className={`text-[11px] font-semibold ${colors.text} truncate`}
                                   >
                                     {member
                                       ? `${member.firstName} ${member.lastName[0]}.`
                                       : "Unassigned"}
                                   </p>
-                                  <p className="text-[10px] text-muted-foreground">
+                                  <p className="text-[10px] text-muted-foreground truncate">
                                     {startTime} – {endTime}
                                   </p>
                                 </div>
-                                {/* Delete hint on hover */}
                                 <div className="hidden group-hover:flex items-center gap-1 text-red-400 text-[10px]">
                                   <Trash2 className="h-3 w-3" />
-                                  Click to manage
+                                  Delete
                                 </div>
                               </div>
                             </motion.div>
                           );
-                        })}
+                        });
+                      })()}
                     </div>
                   ))}
                 </div>

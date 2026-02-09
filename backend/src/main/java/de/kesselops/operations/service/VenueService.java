@@ -2,6 +2,7 @@ package de.kesselops.operations.service;
 
 import de.kesselops.operations.model.Venue;
 import de.kesselops.operations.model.User;
+import de.kesselops.operations.repository.UserRepository;
 import de.kesselops.operations.repository.VenueRepository;
 import de.kesselops.shared.model.Role;
 import org.springframework.stereotype.Service;
@@ -16,9 +17,11 @@ import java.util.List;
 public class VenueService {
 
     private final VenueRepository venueRepository;
+    private final UserRepository userRepository;
 
-    public VenueService(VenueRepository venueRepository) {
+    public VenueService(VenueRepository venueRepository, UserRepository userRepository) {
         this.venueRepository = venueRepository;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -34,7 +37,15 @@ public class VenueService {
         venue.setTimezone(request.timezone() != null ? request.timezone() : "Europe/Berlin");
         venue.setOwnerId(owner.getId());
 
-        return venueRepository.save(venue);
+        Venue saved = venueRepository.save(venue);
+
+        // Also set the owner's venueId so it propagates to invited team members
+        if (owner.getVenueId() == null) {
+            owner.setVenueId(saved.getId());
+            userRepository.save(owner);
+        }
+
+        return saved;
     }
 
     /**
@@ -44,13 +55,14 @@ public class VenueService {
         if (user.getRole() == Role.OWNER) {
             return venueRepository.findByOwnerId(user.getId());
         } else {
-            // Non-owners can only see their assigned venue
+            // Non-owners see their assigned venue
             if (user.getVenueId() != null) {
                 return venueRepository.findById(user.getVenueId())
                         .map(List::of)
                         .orElse(List.of());
             }
-            return List.of();
+            // Fallback: return all venues (organization has no strict multi-tenancy yet)
+            return venueRepository.findAll();
         }
     }
 

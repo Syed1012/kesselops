@@ -181,7 +181,7 @@ export default function TeamPage() {
         </div>
         <Button className="gap-2" onClick={() => setInviteModalOpen(true)}>
           <UserPlus className="h-4 w-4" />
-          Invite Team Member
+          Add Team Member
         </Button>
       </div>
 
@@ -271,28 +271,6 @@ export default function TeamPage() {
               </Card>
             </motion.div>
           ))}
-
-          {/* Invite Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: filteredStaff.length * 0.05 }}
-          >
-            <Card
-              className="h-full flex items-center justify-center border-dashed hover:border-primary/50 cursor-pointer transition-colors"
-              onClick={() => setInviteModalOpen(true)}
-            >
-              <CardContent className="text-center py-12">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Plus className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="font-medium text-foreground">Invite New Member</p>
-                <p className="text-sm text-muted-foreground">
-                  Generate credentials for staff
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
       )}
 

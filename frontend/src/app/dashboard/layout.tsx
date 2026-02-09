@@ -18,19 +18,20 @@ import {
   Building2,
   ChevronDown,
   Loader2,
+  Check,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-context";
-
-// Keep mock data for venues/alerts (to be replaced with real API later)
-import { currentVenue, venues, alerts } from "@/lib/mock-data";
+import { VenueProvider, useVenue } from "@/lib/venue-context";
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
   { icon: Calendar, label: "Schedule", href: "/dashboard/schedule" },
+  { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks" },
   { icon: Package, label: "Inventory", href: "/dashboard/inventory" },
   { icon: UtensilsCrossed, label: "Menu", href: "/dashboard/menu" },
   { icon: Users, label: "Team", href: "/dashboard/team" },
@@ -111,6 +112,15 @@ function Sidebar({ collapsed, onToggle, user }: { collapsed: boolean; onToggle: 
 // Top Header Component
 function Header({ sidebarCollapsed, user, onLogout }: { sidebarCollapsed: boolean; user: { firstName: string; lastName: string } | null; onLogout: () => void }) {
   const [venueDropdownOpen, setVenueDropdownOpen] = useState(false);
+  const { venues, selectedVenue, setSelectedVenue, isLoading: venueLoading } = useVenue();
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!venueDropdownOpen) return;
+    const handler = () => setVenueDropdownOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [venueDropdownOpen]);
 
   return (
     <header
@@ -131,11 +141,13 @@ function Header({ sidebarCollapsed, user, onLogout }: { sidebarCollapsed: boolea
       {/* Venue Selector (Desktop) */}
       <div className="hidden lg:block relative">
         <button
-          onClick={() => setVenueDropdownOpen(!venueDropdownOpen)}
+          onClick={(e) => { e.stopPropagation(); setVenueDropdownOpen(!venueDropdownOpen); }}
           className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
         >
           <Building2 className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium text-foreground">{currentVenue.name}</span>
+          <span className="font-medium text-foreground">
+            {venueLoading ? "Loading..." : selectedVenue?.name || "No venue"}
+          </span>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
 
@@ -146,20 +158,33 @@ function Header({ sidebarCollapsed, user, onLogout }: { sidebarCollapsed: boolea
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded-lg shadow-lg py-2"
+              onClick={(e) => e.stopPropagation()}
             >
-              {venues.map((venue) => (
-                <button
-                  key={venue.id}
-                  className={cn(
-                    "w-full px-4 py-2 text-left hover:bg-muted transition-colors",
-                    venue.id === currentVenue.id && "bg-primary/10"
-                  )}
-                  onClick={() => setVenueDropdownOpen(false)}
-                >
-                  <p className="font-medium text-foreground">{venue.name}</p>
-                  <p className="text-xs text-muted-foreground">{venue.city}</p>
-                </button>
-              ))}
+              {venues.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-muted-foreground">No venues found</p>
+              ) : (
+                venues.map((venue) => (
+                  <button
+                    key={venue.id}
+                    className={cn(
+                      "w-full px-4 py-2.5 text-left hover:bg-muted transition-colors flex items-center justify-between",
+                      venue.id === selectedVenue?.id && "bg-primary/10"
+                    )}
+                    onClick={() => {
+                      setSelectedVenue(venue);
+                      setVenueDropdownOpen(false);
+                    }}
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">{venue.name}</p>
+                      <p className="text-xs text-muted-foreground">{venue.city}</p>
+                    </div>
+                    {venue.id === selectedVenue?.id && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </button>
+                ))
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -172,9 +197,6 @@ function Header({ sidebarCollapsed, user, onLogout }: { sidebarCollapsed: boolea
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
-          {alerts.length > 0 && (
-            <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
-          )}
         </Button>
 
         {/* User (Desktop) */}
@@ -206,8 +228,8 @@ function MobileTabBar() {
   const tabItems = [
     { icon: LayoutDashboard, label: "Home", href: "/dashboard" },
     { icon: Calendar, label: "Schedule", href: "/dashboard/schedule" },
+    { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks" },
     { icon: Package, label: "Stock", href: "/dashboard/inventory" },
-    { icon: UtensilsCrossed, label: "Menu", href: "/dashboard/menu" },
     { icon: Users, label: "Team", href: "/dashboard/team" },
   ];
 
@@ -269,22 +291,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} user={user} />
-      <Header sidebarCollapsed={sidebarCollapsed} user={user} onLogout={handleLogout} />
+    <VenueProvider>
+      <div className="min-h-screen bg-background">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} user={user} />
+        <Header sidebarCollapsed={sidebarCollapsed} user={user} onLogout={handleLogout} />
 
-      <main
-        className={cn(
-          "pt-16 pb-20 lg:pb-6 min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
-        )}
-      >
-        <div className="p-4 lg:p-6">
-          {children}
-        </div>
-      </main>
+        <main
+          className={cn(
+            "pt-16 pb-20 lg:pb-6 min-h-screen transition-all duration-300",
+            sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+          )}
+        >
+          <div className="p-4 lg:p-6">
+            {children}
+          </div>
+        </main>
 
-      <MobileTabBar />
-    </div>
+        <MobileTabBar />
+      </div>
+    </VenueProvider>
   );
 }
