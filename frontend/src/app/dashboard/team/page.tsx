@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Users,
   Search,
   Plus,
   Mail,
@@ -30,7 +29,7 @@ const roleConfig: Record<string, { color: string; label: string }> = {
 
 export default function TeamPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  // const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   // Filter staff
   const filteredStaff = staff.filter((member) => {
@@ -55,7 +54,7 @@ export default function TeamPage() {
           <h1 className="text-2xl font-bold text-foreground">Team</h1>
           <p className="text-muted-foreground">Manage your venue staff and roles</p>
         </div>
-        <Button className="gap-2" onClick={() => setInviteModalOpen(true)}>
+        <Button className="gap-2" onClick={() => {}}>
           <UserPlus className="h-4 w-4" />
           Invite Team Member
         </Button>
@@ -147,7 +146,7 @@ export default function TeamPage() {
         >
           <Card
             className="h-full flex items-center justify-center border-dashed hover:border-primary/50 cursor-pointer transition-colors"
-            onClick={() => setInviteModalOpen(true)}
+            onClick={() => {}}
           >
             <CardContent className="text-center py-12">
               <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">

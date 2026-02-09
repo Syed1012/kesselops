@@ -18,6 +18,7 @@ const Avatar = React.forwardRef<
     {...props}
   >
     {src ? (
+      /* eslint-disable-next-line @next/next/no-img-element */
       <img className="aspect-square h-full w-full object-cover" src={src} alt={alt} />
     ) : (
       <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground font-medium text-sm">

@@ -2,11 +2,9 @@
 
 import { motion } from "framer-motion";
 import {
-  Settings,
   Building2,
   User,
   Bell,
-  Palette,
   Shield,
   CreditCard,
   HelpCircle,
@@ -16,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { currentVenue, currentUser } from "@/lib/mock-data";
+import { currentVenue } from "@/lib/mock-data";
 
 // Settings sections
 const settingsSections = [

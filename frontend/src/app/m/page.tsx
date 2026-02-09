@@ -11,14 +11,12 @@ import {
   Clock,
   X,
   Calendar,
-  Users,
-  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { menuItems, currentVenue, reservations } from "@/lib/mock-data";
+import { menuItems, currentVenue } from "@/lib/mock-data";
 
 // Tag icons
 const tagIcons: Record<string, React.ReactNode> = {

@@ -8,14 +8,13 @@ import {
   MessageCircle,
   CheckCircle2,
   Clock,
-  User,
   Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
-import { handover, todaysShift, currentUser } from "@/lib/mock-data";
+import { handover, todaysShift } from "@/lib/mock-data";
 
 export default function HandoverPage() {
   const [notes, setNotes] = useState("");
