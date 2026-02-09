@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
   TrendingUp,
   TrendingDown,
@@ -300,6 +301,25 @@ function ReservationsCard() {
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
+      {/* Demo Role Switcher */}
+      <div className="p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl mb-4">
+        <p className="text-sm text-violet-300 mb-3 font-medium">👀 Demo Mode: View as...</p>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/owner">
+            <Button size="sm" variant="outline" className="border-violet-500/30 text-violet-300 hover:bg-violet-500/20">Owner</Button>
+          </Link>
+          <Link href="/dashboard/manager">
+            <Button size="sm" variant="outline" className="border-violet-500/30 text-violet-300 hover:bg-violet-500/20">Manager</Button>
+          </Link>
+          <Link href="/dashboard/staff">
+            <Button size="sm" variant="outline" className="border-violet-500/30 text-violet-300 hover:bg-violet-500/20">Staff</Button>
+          </Link>
+          <Link href="/dashboard/trainee">
+            <Button size="sm" variant="outline" className="border-violet-500/30 text-violet-300 hover:bg-violet-500/20">Trainee</Button>
+          </Link>
+        </div>
+      </div>
+
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Good Evening, Max! 👋</h1>

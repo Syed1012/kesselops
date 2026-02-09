@@ -3,15 +3,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  GraduationCap,
-  BookOpen,
   CheckCircle2,
-  Lock,
-  Star,
-  ArrowRight,
   Trophy,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { trainingModules, recipes } from "@/lib/mock-data";
