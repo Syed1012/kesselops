@@ -21,25 +21,42 @@ public class SessionService {
     private final TableRepository tableRepository;
 
     /**
-     * Start a new session via QR scan.
-     * If an active session exists for the table, return it (shared cart behavior).
+     * Start or join a session via QR scan.
+     * 
+     * Flow:
+     * 1. If NO active session: Create new session, generate 4-digit code.
+     * 2. If ACTIVE session exists:
+     * - If provided code matches session code -> Join success.
+     * - If provided code mismatched/missing -> Throw 401 (Frontend prompts user).
+     * 
+     * @param tableId the table ID
+     * @param code    the provided code (optional for new sessions)
      */
-    public Session startSession(Long tableId) {
+    public Session startSession(Long tableId, String code) {
         TableEntity table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableId));
 
         // Check for existing active session
         Optional<Session> existingSession = sessionRepository.findByTableIdAndStatus(
                 tableId, SessionStatus.ACTIVE);
+
         if (existingSession.isPresent()) {
-            return existingSession.get();
+            Session activeSession = existingSession.get();
+            // Verify code to join existing session
+            if (code == null || !code.equals(activeSession.getSessionCode())) {
+                throw new SecurityException("Enter session code to join table");
+            }
+            return activeSession;
         }
 
-        // Create new session
+        // Create new session with random 4-digit code
+        String sessionCode = String.format("%04d", new java.security.SecureRandom().nextInt(10000));
+
         Session session = Session.builder()
                 .tableId(tableId)
                 .venueId(table.getVenueId())
                 .status(SessionStatus.ACTIVE)
+                .sessionCode(sessionCode)
                 .build();
         return sessionRepository.save(session);
     }

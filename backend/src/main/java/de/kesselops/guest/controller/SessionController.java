@@ -14,11 +14,15 @@ public class SessionController {
     private final SessionService sessionService;
 
     /**
-     * POST /api/tables/{tableId}/sessions/start - Start session via QR scan
+     * POST /api/tables/{tableId}/sessions/start?code=XXXX - Start session via QR
+     * scan
+     * Requires valid 4-digit table code for security.
      */
     @PostMapping("/api/tables/{tableId}/sessions/start")
-    public ResponseEntity<Session> startSession(@PathVariable Long tableId) {
-        Session session = sessionService.startSession(tableId);
+    public ResponseEntity<Session> startSession(
+            @PathVariable Long tableId,
+            @RequestParam(value = "code", required = false) String code) {
+        Session session = sessionService.startSession(tableId, code);
         return ResponseEntity.status(HttpStatus.CREATED).body(session);
     }
 

@@ -52,6 +52,12 @@ public class Session {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
+    /**
+     * Active session code for sharing (4 digits).
+     */
+    @Column(name = "session_code", length = 4)
+    private String sessionCode;
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
