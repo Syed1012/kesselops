@@ -27,6 +27,14 @@ public class SessionController {
     }
 
     /**
+     * GET /api/tables/{tableId}/active-status - Check if table has active session
+     */
+    @GetMapping("/api/tables/{tableId}/active-status")
+    public ResponseEntity<Boolean> checkActiveSession(@PathVariable Long tableId) {
+        return ResponseEntity.ok(sessionService.hasActiveSession(tableId));
+    }
+
+    /**
      * GET /api/sessions/{sessionId} - Get session details
      */
     @GetMapping("/api/sessions/{sessionId}")

@@ -11,6 +11,10 @@ import java.time.LocalDateTime;
 public class CreateReservationRequest {
 
     private Long guestId;
+    private String guestName;
+    private String guestEmail;
+    private String guestPhone;
+    private String notes;
 
     @NotNull(message = "venueId is required")
     private Long venueId;

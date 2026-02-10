@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { VISUAL_MENU } from "@/lib/menu-data";
 import { SiGooglepay, SiPaypal, SiApple } from "react-icons/si";
+import { useRouter } from "next/navigation";
 
 type PaymentMethod = 'CARD' | 'MOBILE_PAY';
 type MobileProvider = 'GOOGLE_PAY' | 'APPLE_PAY' | 'PAYPAL';
@@ -48,6 +49,7 @@ const formatExpiry = (value: string) => {
 export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     const { session, orders, setSession, closeSession } = useSessionStore();
     const ordersTotal = useSessionStore(selectOrdersTotal);
+    const router = useRouter();
 
     // States
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
@@ -131,8 +133,9 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
             // We'll trust the user paid the tip with the transaction.
 
             await createPayment(session.id, {
-                amount: totalCharge, // We charge the full amount including tip
-                paymentMethod: selectedMethod || 'CARD', // Keeping simplistic for backend map, frontend handles UI
+                amount: payAmount,
+                tip: calculatedTip,
+                paymentMethod: selectedMethod || 'CARD',
             });
 
             // Store this payment for the receipt
@@ -147,15 +150,7 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
             const updatedSession = await getSession(session.id);
             setSession(updatedSession);
 
-            if (updatedSession.status === 'CLOSED') {
-                // Fully Paid -> Show Full Bill eventually, but first show success for this transaction?
-                // Or go straight to Full Summary? 
-                // User asked: "when all the payment is done show the whole bill"
-                setViewState('FULL_BILL');
-            } else {
-                // Partial Pay -> Show only "my part"
-                setViewState('SUCCESS');
-            }
+            setViewState('SUCCESS');
 
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Payment failed');
@@ -210,7 +205,8 @@ Tip:      €${lastPayment.tip.toFixed(2)}
 ----------------------------------------
 TOTAL:    €${(lastPayment.amount + lastPayment.tip).toFixed(2)}
 ----------------------------------------
-        Thank You!
+Remaining Due: €${remainingBalance.toFixed(2)}
+         Thank You!
 `;
         } else {
             text += `
@@ -526,87 +522,33 @@ Total Paid:  €${totalPaid.toFixed(2)} (inc all tips)
                                     />
                                 </div>
 
-                                <div className="mt-8 flex gap-3 w-full max-w-sm">
-                                    <Button onClick={() => handleDownload('PARTIAL')} className="flex-1 bg-slate-800">
-                                        <Download className="h-4 w-4 mr-2" /> Receipt
-                                    </Button>
-                                    <Button onClick={onClose} className="flex-1 bg-white text-black hover:bg-slate-200">
-                                        Done
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* VIEW: FULL BILL (SESSION CLOSED) */}
-                        {viewState === 'FULL_BILL' && (
-                            <div className="p-6 h-full flex flex-col bg-[#0f1629]">
-                                <div className="flex items-center justify-between mb-6">
-                                    <h2 className="text-2xl font-bold text-white">Final Bill</h2>
-                                    <button onClick={onClose}><X className="text-slate-400" /></button>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto mb-6 bg-white text-slate-900 rounded-xl p-6 shadow-xl space-y-4">
-                                    <div className="text-center border-b border-dashed border-slate-300 pb-4">
-                                        <h3 className="font-bold text-lg uppercase tracking-wider">KesselOps Dining</h3>
-                                        <p className="text-sm text-slate-500">Table {session?.tableId} • {format(new Date(), 'PP')}</p>
+                                {/* Email Option */}
+                                <div className="mt-8 w-full max-w-sm space-y-3">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            placeholder="your@email.com"
+                                            className="flex-1 h-12 bg-[#1a1f3a]/50 border border-[#2a2f4a] rounded-xl px-4 text-white focus:outline-none focus:border-violet-500 transition-colors"
+                                        />
+                                        <Button
+                                            onClick={handleEmailBill}
+                                            disabled={!email || sendingEmail}
+                                            className="h-12 px-4 bg-violet-600 hover:bg-violet-700 text-white rounded-xl"
+                                        >
+                                            {sendingEmail ? '...' : <Mail className="h-5 w-5" />}
+                                        </Button>
                                     </div>
 
-                                    <div className="space-y-2 text-sm">
-                                        {orders.map((o, idx) => (
-                                            <div key={idx}>
-                                                {o.items.map((item, i) => (
-                                                    <div key={i} className="flex justify-between">
-                                                        <span>{item.quantity}x {VISUAL_MENU.find(m => m.id === item.menuItemId)?.name || 'Item'}</span>
-                                                        <span className="font-medium">€{item.lineTotal.toFixed(2)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ))}
+                                    <div className="flex gap-3">
+                                        <Button onClick={() => handleDownload('PARTIAL')} className="flex-1 bg-slate-800">
+                                            <Download className="h-4 w-4 mr-2" /> Receipt
+                                        </Button>
+                                        <Button onClick={() => router.push('/review')} className="flex-1 bg-white text-black hover:bg-slate-200">
+                                            Done
+                                        </Button>
                                     </div>
-
-                                    <div className="border-t border-slate-300 pt-4 space-y-1">
-                                        <div className="flex justify-between font-bold text-lg">
-                                            <span>TOTAL</span>
-                                            <span>€{ordersTotal.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-xs text-slate-500 uppercase">
-                                            <span>Total Paid (inc. tips)</span>
-                                            <span>€{totalPaid.toFixed(2)}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="text-center pt-8">
-                                        <p className="font-script text-2xl text-slate-600">Thank You!</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {/* Email Bill */}
-                                    <div>
-                                        <label className="text-sm font-medium text-slate-300 mb-2 block">
-                                            Email Bill to Me
-                                        </label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="email"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                placeholder="your@email.com"
-                                                className="flex-1 h-12 bg-[#1a1f3a]/50 border border-[#2a2f4a] rounded-xl px-4 text-white focus:outline-none focus:border-violet-500 transition-colors"
-                                            />
-                                            <Button
-                                                onClick={handleEmailBill}
-                                                disabled={!email || sendingEmail}
-                                                className="h-12 px-4 bg-violet-600 hover:bg-violet-700 text-white rounded-xl"
-                                            >
-                                                {sendingEmail ? '...' : <Mail className="h-5 w-5" />}
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <Button onClick={() => handleDownload('FULL')} className="w-full h-12 bg-slate-800 hover:bg-slate-700">
-                                        <Download className="mr-2 h-4 w-4" /> Download PDF
-                                    </Button>
                                 </div>
                             </div>
                         )}

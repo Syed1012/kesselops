@@ -26,14 +26,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format, addDays, startOfToday } from "date-fns";
-import { useSessionStore, selectOrdersTotal, selectIsSessionActive, selectCartItemCount } from "@/lib/session-store";
-import { startSession as apiStartSession, getSessionOrders, getSessionCart, addToCart as apiAddToCart, updateCartItemQuantity, removeFromCart as apiRemoveFromCart, findSessionByCode } from "@/lib/api";
+import { useSessionStore, selectOrdersTotal, selectIsSessionActive, selectCartItemCount, selectTotalPaid } from "@/lib/session-store";
+import { startSession as apiStartSession, getSessionOrders, getSessionCart, addToCart as apiAddToCart, updateCartItemQuantity, removeFromCart as apiRemoveFromCart, findSessionByCode, getSessionPayments, checkActiveSession } from "@/lib/api";
 import { JoinSessionModal } from "@/components/join-session-modal";
 import { CartDrawer, CartButton } from "@/components/cart-drawer";
 import { PaymentModal } from "@/components/payment-modal";
 import { SessionBanner } from "@/components/session-banner";
 import { VISUAL_MENU } from "@/lib/menu-data";
 import { OrderHistoryDrawer } from "@/components/order-history-drawer";
+import { WaiterNotification } from "@/components/waiter-notification";
+import { SessionStartFlow } from "@/components/session-start-flow";
+import { ReservationModal } from "@/components/reservation-modal";
 
 const REVIEWS = [
   {
@@ -75,160 +78,17 @@ const UPCOMING_EVENTS = [
 // COMPONENTS
 // ============================================
 
-function ReservationDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [step, setStep] = useState(0);
-  const [guests, setGuests] = useState(2);
-  const [date, setDate] = useState(startOfToday());
-  const [time, setTime] = useState("");
 
-  const today = startOfToday();
-  const dates = Array.from({ length: 5 }).map((_, i) => addDays(today, i));
-  const times = ["18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00"];
-
-  useEffect(() => {
-    if (!isOpen) setTimeout(() => setStep(0), 300);
-  }, [isOpen]);
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[#0a0a0a] border-l border-white/10 shadow-2xl flex flex-col"
-          >
-            <div className="flex items-center justify-between p-6 border-b border-white/5">
-              <h2 className="text-xl font-serif tracking-wider text-amber-50">Reservations</h2>
-              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-white/60 hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <AnimatePresence mode="wait">
-                {step === 0 && (
-                  <motion.div
-                    key="step0"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-8"
-                  >
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4 block">Party Size</label>
-                      <div className="grid grid-cols-4 gap-3">
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                          <button
-                            key={n}
-                            onClick={() => setGuests(n)}
-                            className={cn(
-                              "aspect-square rounded-xl border flex items-center justify-center text-lg font-bold transition-all",
-                              guests === n ? "bg-amber-500 border-amber-500 text-black" : "border-white/10 text-white/60 hover:border-white/30 hover:bg-white/5"
-                            )}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4 block">Date</label>
-                      <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-                        {dates.map((d, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setDate(d)}
-                            className={cn(
-                              "min-w-[80px] p-3 rounded-xl border flex flex-col items-center gap-1 transition-all",
-                              format(date, 'yyyy-MM-dd') === format(d, 'yyyy-MM-dd') ? "bg-amber-500 border-amber-500 text-black" : "border-white/10 text-white/60 hover:border-white/30 hover:bg-white/5"
-                            )}
-                          >
-                            <span className="text-xs opacity-70">{format(d, 'EEE')}</span>
-                            <span className="text-lg font-bold">{format(d, 'd')}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4 block">Time</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        {times.map(t => (
-                          <button
-                            key={t}
-                            onClick={() => setTime(t)}
-                            className={cn(
-                              "py-3 rounded-lg border text-sm font-bold transition-all",
-                              time === t ? "bg-white text-black border-white" : "border-white/10 text-white/60 hover:border-white/30 hover:bg-white/5"
-                            )}
-                          >
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-                {step === 1 && (
-                  <motion.div
-                    key="step1"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-6 pt-10 text-center"
-                  >
-                    <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Check className="h-10 w-10 text-amber-500" />
-                    </div>
-                    <h3 className="text-2xl font-serif text-white">Request Sent</h3>
-                    <p className="text-white/60">
-                      We have received your request for <strong className="text-white">{guests} guests</strong> on <strong className="text-white">{format(date, 'MMM do')}</strong> at <strong className="text-white">{time}</strong>.
-                    </p>
-                    <p className="text-sm text-white/40">You will receive a confirmation SMS shortly.</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            <div className="p-6 border-t border-white/5 bg-[#0a0a0a]">
-              {step === 0 ? (
-                <Button
-                  className="w-full h-14 text-lg font-bold bg-amber-500 text-black hover:bg-amber-400 rounded-none uppercase tracking-widest"
-                  disabled={!time}
-                  onClick={() => setStep(1)}
-                >
-                  Find Table
-                </Button>
-              ) : (
-                <Button
-                  className="w-full h-14 text-lg font-bold bg-white/10 text-white hover:bg-white/20 rounded-none uppercase tracking-widest"
-                  onClick={onClose}
-                >
-                  Close
-                </Button>
-              )}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
 
 // Wrapper component that uses useSearchParams
 function TableSessionPageContent() {
   const { scrollYProgress } = useScroll();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [startFlowOpen, setStartFlowOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
   const [isOrderHistoryOpen, setIsOrderHistoryOpen] = useState(false);
+  const [isWaiterNotificationOpen, setIsWaiterNotificationOpen] = useState(false);
 
   // Join Session State
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -241,10 +101,13 @@ function TableSessionPageContent() {
   const searchParams = useSearchParams();
 
   // Session store
-  const { session, setSession, setTableInfo, orders, syncOrders, syncCart } = useSessionStore();
+  const { session, setSession, setTableInfo, orders, syncOrders, syncCart, syncPayments } = useSessionStore();
   const isSessionActive = useSessionStore(selectIsSessionActive);
   const ordersTotal = useSessionStore(selectOrdersTotal);
+  const totalPaid = useSessionStore(selectTotalPaid);
   const cartItemCount = useSessionStore(selectCartItemCount);
+
+  const remainingBalance = Math.max(0, ordersTotal - totalPaid);
 
   // Start session on mount if tableId is in URL
   useEffect(() => {
@@ -261,35 +124,51 @@ function TableSessionPageContent() {
       const storedCode = localStorage.getItem(`table_${tableId}_session_code`);
       const codeToUse = codeFromUrl || storedCode;
 
-      // Attempt to start/join session
-      // If code is present, use it. If not, try to start new (or detect need for code)
-      apiStartSession(parseInt(tableId), codeToUse)
-        .then((newSession) => {
-          setSession(newSession);
-          setSessionError(null);
+      if (codeToUse) {
+        // Attempt to start/join session
+        apiStartSession(parseInt(tableId), codeToUse)
+          .then((newSession) => {
+            setSession(newSession);
+            setSessionError(null);
 
-          // Store the session code in localStorage for future use
-          if (newSession.sessionCode) {
-            localStorage.setItem(`table_${tableId}_session_code`, newSession.sessionCode);
-          }
-        })
-        .catch((err) => {
-          if (err.message === 'AUTH_REQUIRED') {
-            // Clear stored code if it's invalid
-            if (storedCode) {
-              localStorage.removeItem(`table_${tableId}_session_code`);
+            // Store the session code in localStorage for future use
+            if (newSession.sessionCode) {
+              localStorage.setItem(`table_${tableId}_session_code`, newSession.sessionCode);
             }
+          })
+          .catch((err) => {
+            if (err.message === 'AUTH_REQUIRED') {
+              // Clear stored code if it's invalid
+              if (storedCode) {
+                localStorage.removeItem(`table_${tableId}_session_code`);
+              }
+              setIsJoinModalOpen(true);
+            } else {
+              setSessionError(err.message || 'Failed to start session. Please scan the QR code again.');
+            }
+          });
+      } else {
+        // No code? Prompt user to start NEW session
+        // No code? check if active session exists.
+        checkActiveSession(parseInt(tableId)).then(isActive => {
+          if (isActive) {
+            // Active session exists -> Prompt for code (Join)
             setIsJoinModalOpen(true);
           } else {
-            setSessionError(err.message || 'Failed to start session. Please scan the QR code again.');
+            // No active session -> Prompt to Start
+            setStartFlowOpen(true);
           }
+        }).catch(() => {
+          // Fallback
+          setStartFlowOpen(true);
         });
+      }
     }
   }, [searchParams, session, setSession, setTableInfo]);
 
   const handleJoinSession = async (code: string) => {
-    const tableId = searchParams.get('tableId');
 
+    const tableId = searchParams.get('tableId');
     // Case 1: Searching for a session by code (no table ID yet)
     if (!tableId) {
       setIsJoining(true);
@@ -335,20 +214,22 @@ function TableSessionPageContent() {
       .catch(err => console.error('Failed to fetch orders:', err));
   }, [session?.id, syncOrders]);
 
-  // Sync session data (Cart & Orders)
+  // Sync session data (Cart & Orders & Payments)
   useEffect(() => {
     if (!session?.id) return;
 
     const syncData = async () => {
       try {
-        // We must poll orders to check for "SERVED" status to enable payment
-        const [dbCart, dbOrders] = await Promise.all([
+        // We must poll orders to check for "SERVED" status and payments for updates
+        const [dbCart, dbOrders, dbPayments] = await Promise.all([
           getSessionCart(session.id),
-          getSessionOrders(session.id)
+          getSessionOrders(session.id),
+          getSessionPayments(session.id)
         ]);
 
         syncCart(dbCart);
         syncOrders(dbOrders);
+        syncPayments(dbPayments);
       } catch (err) {
         console.error('Failed to sync session data:', err);
       }
@@ -358,10 +239,10 @@ function TableSessionPageContent() {
     syncData();
 
     // Poll every 3 seconds
-    const interval = setInterval(syncData, 3000);
+    const interval = setInterval(syncData, 5000); // Relaxed polling for payments
 
     return () => clearInterval(interval);
-  }, [session?.id, syncCart, syncOrders]);
+  }, [session?.id, syncCart, syncOrders, syncPayments]);
 
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
@@ -427,6 +308,7 @@ function TableSessionPageContent() {
         onJoin={handleJoinSession}
         isLoading={isJoining}
         error={joinError}
+        onClose={() => setIsJoinModalOpen(false)}
       />
 
       {/* Cart Drawer */}
@@ -446,7 +328,29 @@ function TableSessionPageContent() {
       {/* Payment Modal */}
       <PaymentModal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} />
 
-      <ReservationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+      <SessionStartFlow
+        isOpen={startFlowOpen}
+        tableId={parseInt(searchParams.get('tableId') || '0')}
+        onClose={() => setStartFlowOpen(false)}
+        onSessionStarted={(newSession) => {
+          setSession(newSession);
+          // startFlowOpen stays true to show SUCCESS state in popup
+        }}
+        onJoinRequired={() => {
+          setStartFlowOpen(false);
+          setIsJoinModalOpen(true);
+        }}
+      />
+
+      <ReservationModal
+        isOpen={isReservationModalOpen}
+        onClose={() => setIsReservationModalOpen(false)}
+      />
+
+      <WaiterNotification
+        isOpen={isWaiterNotificationOpen}
+        onClose={() => setIsWaiterNotificationOpen(false)}
+      />
 
       <motion.div className="fixed top-0 left-0 right-0 h-1 bg-amber-500 origin-left z-50" style={{ scaleX }} />
 
@@ -457,7 +361,7 @@ function TableSessionPageContent() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-full backdrop-blur-sm border border-white/10 shadow-lg"
-            onClick={() => alert("A waiter has been notified and will be with you shortly.")}
+            onClick={() => setIsWaiterNotificationOpen(true)}
           >
             <Bell className="h-6 w-6" />
           </motion.button>
@@ -496,30 +400,35 @@ function TableSessionPageContent() {
           </motion.button>
         )}
 
-        {/* Pay Button - only show when ALL orders are SERVED */}
-        {isSessionActive && orders.length > 0 && orders.every(o => o.status === 'SERVED') && (
+        {/* Pay Button - only show when ALL orders are SERVED and there is a balance */}
+        {isSessionActive && orders.length > 0 && orders.every(o => o.status === 'SERVED') && remainingBalance > 0 && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             onClick={() => setIsPaymentOpen(true)}
-            className="bg-emerald-500 text-white px-6 py-4 font-bold uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 hover:bg-emerald-400 transition-all rounded-full flex items-center gap-3"
+            className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-6 py-4 font-bold uppercase tracking-widest shadow-lg shadow-emerald-500/10 hover:scale-105 backdrop-blur-md transition-all rounded-full flex items-center gap-3"
           >
             <CreditCard className="h-5 w-5" />
-            Pay €{ordersTotal.toFixed(2)}
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-[10px] opacity-70 mb-0.5">Pay Bill</span>
+              <span>€{remainingBalance.toFixed(2)}</span>
+            </div>
           </motion.button>
         )}
 
-        {/* Reserve Table Button - only show if no active session */}
+
+
+        {/* Reserve Table FAB - Only show if NO active session */}
         {!isSessionActive && (
           <motion.button
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 1 }}
-            onClick={() => setIsDrawerOpen(true)}
-            className="bg-amber-500 text-black px-8 py-4 font-bold uppercase tracking-widest shadow-lg shadow-amber-500/20 hover:scale-105 hover:bg-amber-400 transition-all rounded-full flex items-center gap-3 backdrop-blur-sm"
+            transition={{ delay: 1.2 }}
+            onClick={() => setIsReservationModalOpen(true)}
+            className="bg-amber-600 text-white px-6 py-4 font-bold uppercase tracking-widest shadow-lg hover:bg-amber-500 transition-all rounded-full flex items-center gap-3"
           >
             <CalendarDays className="h-5 w-5" />
-            Reserve Table
+            <span className="hidden md:inline">Book Table</span>
           </motion.button>
         )}
 
@@ -652,8 +561,11 @@ function TableSessionPageContent() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
                 viewport={{ once: true }}
-                className="group relative aspect-[4/3] rounded-2xl overflow-hidden cursor-pointer"
-                onClick={() => handleAddToCart(item)}
+                className={cn(
+                  "group relative aspect-[4/3] rounded-2xl overflow-hidden transition-all",
+                  isSessionActive ? "cursor-pointer hover:shadow-2xl" : "cursor-default"
+                )}
+                onClick={() => isSessionActive && handleAddToCart(item)}
               >
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
@@ -662,15 +574,17 @@ function TableSessionPageContent() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 group-hover:opacity-60 transition-opacity" />
 
                 {/* Add to Cart Button Overlay */}
-                <motion.div
-                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
-                    <Plus className="h-6 w-6 text-black" />
-                  </div>
-                </motion.div>
+                {isSessionActive && (
+                  <motion.div
+                    className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                      <Plus className="h-6 w-6 text-black" />
+                    </div>
+                  </motion.div>
+                )}
 
                 <div className="absolute bottom-0 left-0 right-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform">
                   <span className="inline-block px-3 py-1 bg-amber-500 text-black text-xs font-bold uppercase tracking-wider mb-3 rounded-full">

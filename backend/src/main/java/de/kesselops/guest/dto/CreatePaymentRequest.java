@@ -17,6 +17,8 @@ public class CreatePaymentRequest {
     @NotNull(message = "paymentMethod is required")
     private PaymentMethod paymentMethod;
 
+    private BigDecimal tip;
+
     /**
      * Staff who collected the payment (for waiter/manual payments).
      * Optional for app payments.

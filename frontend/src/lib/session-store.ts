@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Session, Order, CartItem as ApiCartItem } from './api';
+import type { Session, Order, Payment, CartItem as ApiCartItem } from './api';
 
 // ============================================
 // CART ITEM TYPE (using API type)
@@ -28,6 +28,9 @@ interface SessionState {
     // Submitted orders
     orders: Order[];
 
+    // Payments
+    payments: Payment[];
+
     // Loading states
     isLoading: boolean;
     error: string | null;
@@ -44,6 +47,10 @@ interface SessionState {
     addOrder: (order: Order) => void;
     updateOrderStatus: (orderId: number, status: Order['status']) => void;
     syncOrders: (orders: Order[]) => void;
+
+    // Payment actions
+    syncPayments: (payments: Payment[]) => void;
+    addPayment: (payment: Payment) => void;
 
     // Session actions
     closeSession: () => void;
@@ -66,6 +73,7 @@ export const useSessionStore = create<SessionState>()(
             tableCode: null,
             cart: [],
             orders: [],
+            payments: [],
             isLoading: false,
             error: null,
 
@@ -92,6 +100,12 @@ export const useSessionStore = create<SessionState>()(
 
             syncOrders: (orders) => {
                 set({ orders });
+            },
+
+            // Payment actions (synced from database)
+            syncPayments: (payments) => set({ payments }),
+            addPayment: (payment) => {
+                set({ payments: [...get().payments, payment] });
             },
 
             // Session actions
@@ -140,4 +154,8 @@ export const selectOrdersTotal = (state: SessionState): number => {
 
 export const selectIsSessionActive = (state: SessionState): boolean => {
     return state.session?.status === 'ACTIVE';
+};
+
+export const selectTotalPaid = (state: SessionState): number => {
+    return state.payments.reduce((sum, p) => sum + p.amount, 0); // Excludes tip if tip is separate field
 };
