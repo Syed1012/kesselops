@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -230,10 +230,9 @@ export default function TeamPage() {
               <Card className="group hover:border-primary/30 transition-colors h-full">
                 <CardContent className="pt-6 flex flex-col h-full">
                   <div className="flex items-start gap-4 mb-4">
-                    <Avatar
-                      fallback={`${member.firstName[0]}${member.lastName[0]}`}
-                      className="h-12 w-12"
-                    />
+                    <Avatar className="h-12 w-12">
+                      <AvatarFallback>{member.firstName[0]}{member.lastName[0]}</AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-foreground truncate">

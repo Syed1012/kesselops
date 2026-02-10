@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Building2,
@@ -124,6 +125,16 @@ export default function SettingsPage() {
       setHasChanges(false);
     }
   }, [selectedVenue]);
+
+  // Add useSearchParams hook
+  const searchParams = useSearchParams();
+
+  // Auto-open add modal if query param is set
+  useEffect(() => {
+    if (searchParams.get("open") === "add-venue") {
+      setAddModalOpen(true);
+    }
+  }, [searchParams]);
 
   // Update form when venue changes
   const handleVenueSelect = (venue: typeof selectedVenue) => {

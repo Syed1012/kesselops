@@ -13,7 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { handover, todaysShift } from "@/lib/mock-data";
 
 export default function HandoverPage() {
@@ -42,7 +42,9 @@ export default function HandoverPage() {
           {/* Notes */}
           <div className="p-4 bg-card rounded-lg border border-border">
             <div className="flex items-start gap-3 mb-3">
-              <Avatar fallback={handover.incoming.from.split(" ").map((n) => n[0]).join("")} />
+              <Avatar>
+                <AvatarFallback>{handover.incoming.from.split(" ").map((n) => n[1]).join("")}</AvatarFallback>
+              </Avatar>
               <div className="flex-1">
                 <p className="font-medium text-foreground">{handover.incoming.from}</p>
                 <p className="text-sm text-muted-foreground">Previous Shift</p>
@@ -104,11 +106,9 @@ export default function HandoverPage() {
             </div>
             <div className="flex -space-x-2">
               {todaysShift.staff.map((member) => (
-                <Avatar
-                  key={member.id}
-                  fallback={`${member.firstName[0]}${member.lastName[0]}`}
-                  className="border-2 border-card"
-                />
+                <Avatar key={member.id} className="border-2 border-card">
+                  <AvatarFallback>{member.firstName[0]}{member.lastName[0]}</AvatarFallback>
+                </Avatar>
               ))}
             </div>
           </div>

@@ -18,7 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { revenueData, alerts, todaysShift, tasks, reservations, currentVenue } from "@/lib/mock-data";
 
 // Revenue Card
@@ -142,7 +142,9 @@ function ShiftStatusCard() {
             >
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <Avatar fallback={`${member.firstName[0]}${member.lastName[0]}`} />
+                  <Avatar>
+                    <AvatarFallback>{member.firstName[0]}{member.lastName[0]}</AvatarFallback>
+                  </Avatar>
                   <span
                     className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card ${
                       member.status === "ACTIVE" ? "bg-green-500" : "bg-yellow-500"

@@ -38,22 +38,6 @@ export default function LoginPage() {
     }
   };
 
-  // For demo: quick login with demo credentials
-  const handleDemoLogin = async (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setIsSubmitting(true);
-    
-    const result = await login(demoEmail, demoPass);
-    if (result.success) {
-      toast.success("Welcome back!");
-      router.push("/dashboard");
-    } else {
-      toast.error(result.error || "Demo login failed - user may not exist yet");
-    }
-    setIsSubmitting(false);
-  };
-
   const isLoading = isSubmitting || authLoading;
 
   return (
@@ -182,40 +166,6 @@ export default function LoginPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Demo Credentials - Click to auto-fill and login */}
-        <motion.div
-          className="mt-6 p-4 bg-[#0f1629]/50 border border-[#1e293b] rounded-lg"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          <p className="text-xs text-slate-500 text-center mb-2">Demo Credentials (click to login)</p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => handleDemoLogin("owner@oscho.de", "demo123")}
-              className="text-left text-slate-400 hover:text-violet-400 transition-colors"
-              disabled={isLoading}
-            >
-              <span className="text-slate-500">Owner:</span> owner@oscho.de
-            </button>
-            <div className="text-slate-400">
-              <span className="text-slate-500">Pass:</span> demo123
-            </div>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin("staff@oscho.de", "demo123")}
-              className="text-left text-slate-400 hover:text-violet-400 transition-colors"
-              disabled={isLoading}
-            >
-              <span className="text-slate-500">Staff:</span> staff@oscho.de
-            </button>
-            <div className="text-slate-400">
-              <span className="text-slate-500">Pass:</span> demo123
-            </div>
-          </div>
-        </motion.div>
       </motion.div>
     </main>
   );
