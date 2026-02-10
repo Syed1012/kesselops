@@ -30,6 +30,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-context";
 import { VenueProvider, useVenue } from "@/lib/venue-context";
+import { GlobalAIMentor } from "@/components/dashboard/ai-mentor";
 
 const allSidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", allowedRoles: "all" as const },
@@ -355,6 +356,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
 
         <MobileTabBar userRole={user?.role || "STAFF"} />
+        <GlobalAIMentor />
       </div>
     </VenueProvider>
   );

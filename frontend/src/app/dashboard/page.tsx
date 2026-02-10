@@ -14,6 +14,9 @@ const ManagerDashboard = dynamic(() => import("./manager/page"), {
 const StaffDashboard = dynamic(() => import("./staff/page"), {
   loading: () => <DashboardLoader />,
 });
+const TraineeDashboard = dynamic(() => import("./trainee/page"), {
+  loading: () => <DashboardLoader />,
+});
 
 function DashboardLoader() {
   return (
@@ -34,8 +37,9 @@ export default function DashboardPage() {
     case "MANAGER":
     case "CHEF":
       return <ManagerDashboard />;
-    case "STAFF":
     case "TRAINEE":
+      return <TraineeDashboard />;
+    case "STAFF":
     default:
       return <StaffDashboard />;
   }
