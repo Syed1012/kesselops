@@ -56,6 +56,18 @@ public class HandoverController {
     }
 
     /**
+     * GET /api/shifts/{shiftId}/handover/incoming - Get incoming handover for shift
+     */
+    @GetMapping("/incoming")
+    public ResponseEntity<ApiResponse<HandoverResponse>> getIncomingHandover(@PathVariable Long shiftId) {
+        Handover handover = handoverService.getIncomingHandover(shiftId);
+        if (handover == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(ApiResponse.success(toHandoverResponse(handover)));
+    }
+
+    /**
      * POST /api/shifts/{shiftId}/handover/acknowledge - Acknowledge handover
      */
     @PostMapping("/acknowledge")

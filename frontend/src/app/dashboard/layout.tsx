@@ -21,6 +21,8 @@ import {
   Check,
   ClipboardList,
   Plus,
+  GraduationCap,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,20 +32,25 @@ import { useAuth } from "@/lib/auth-context";
 import { VenueProvider, useVenue } from "@/lib/venue-context";
 
 const allSidebarItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: "all" as const },
-  { icon: Calendar, label: "Schedule", href: "/dashboard/schedule", roles: "all" as const },
-  { icon: Package, label: "Inventory", href: "/dashboard/inventory", roles: "privileged" as const },
-  { icon: UtensilsCrossed, label: "Menu", href: "/dashboard/menu", roles: "privileged" as const },
-  { icon: Users, label: "Team", href: "/dashboard/team", roles: "privileged" as const },
-  { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks", roles: "all" as const },
-  { icon: Settings, label: "Settings", href: "/dashboard/settings", roles: "all" as const },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", allowedRoles: "all" as const },
+  { icon: Calendar, label: "Schedule", href: "/dashboard/schedule", allowedRoles: "all" as const },
+  { icon: Package, label: "Inventory", href: "/dashboard/inventory", allowedRoles: ["OWNER", "MANAGER", "CHEF"] as const },
+  { icon: UtensilsCrossed, label: "Menu", href: "/dashboard/menu", allowedRoles: ["OWNER", "MANAGER", "CHEF"] as const },
+  { icon: Users, label: "Team", href: "/dashboard/team", allowedRoles: ["OWNER", "MANAGER", "CHEF"] as const },
+  { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks", allowedRoles: "all" as const },
+  { icon: ArrowLeftRight, label: "Handover", href: "/dashboard/handover", allowedRoles: ["STAFF", "TRAINEE", "MANAGER", "CHEF", "OWNER"] as const },
+  { icon: GraduationCap, label: "Learn", href: "/dashboard/learn", allowedRoles: ["TRAINEE"] as const },
+  { icon: Settings, label: "Settings", href: "/dashboard/settings", allowedRoles: "all" as const },
 ];
 
 const privilegedRoles = ["OWNER", "MANAGER", "CHEF"];
 
 function getSidebarItems(role: string) {
-  if (privilegedRoles.includes(role)) return allSidebarItems;
-  return allSidebarItems.filter((item) => item.roles === "all");
+  // Filter items based on role
+  return allSidebarItems.filter((item) => {
+    if (item.allowedRoles === "all") return true;
+    return (item.allowedRoles as readonly string[]).includes(role);
+  });
 }
 
 // Desktop Sidebar Component
@@ -256,19 +263,22 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
 // Mobile Bottom Tab Bar
 function MobileTabBar({ userRole }: { userRole: string }) {
   const pathname = usePathname();
-  const isPrivileged = privilegedRoles.includes(userRole);
 
   const allTabItems = [
-    { icon: LayoutDashboard, label: "Home", href: "/dashboard", roles: "all" as const },
-    { icon: Calendar, label: "Schedule", href: "/dashboard/schedule", roles: "all" as const },
-    { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks", roles: "all" as const },
-    { icon: Package, label: "Stock", href: "/dashboard/inventory", roles: "privileged" as const },
-    { icon: Users, label: "Team", href: "/dashboard/team", roles: "privileged" as const },
+    { icon: LayoutDashboard, label: "Home", href: "/dashboard", allowedRoles: "all" as const },
+    { icon: Calendar, label: "Schedule", href: "/dashboard/schedule", allowedRoles: "all" as const },
+    { icon: Package, label: "Inv.", href: "/dashboard/inventory", allowedRoles: ["OWNER", "MANAGER", "CHEF"] as const },
+    { icon: Users, label: "Team", href: "/dashboard/team", allowedRoles: ["OWNER", "MANAGER", "CHEF"] as const },
+    { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks", allowedRoles: "all" as const },
+    { icon: ArrowLeftRight, label: "H.Over", href: "/dashboard/handover", allowedRoles: ["STAFF", "TRAINEE", "MANAGER", "CHEF", "OWNER"] as const },
+    { icon: GraduationCap, label: "Learn", href: "/dashboard/learn", allowedRoles: ["TRAINEE"] as const },
+    { icon: Settings, label: "Settings", href: "/dashboard/settings", allowedRoles: "all" as const },
   ];
 
-  const tabItems = isPrivileged
-    ? allTabItems
-    : allTabItems.filter((item) => item.roles === "all");
+  const tabItems = allTabItems.filter((item) => {
+    if (item.allowedRoles === "all") return true;
+    return (item.allowedRoles as readonly string[]).includes(userRole);
+  });
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border lg:hidden">

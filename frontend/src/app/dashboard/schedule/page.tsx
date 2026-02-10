@@ -86,6 +86,7 @@ const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function SchedulePage() {
   const { user: currentUser } = useAuth();
+  const isPrivileged = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
   const [currentWeek, setCurrentWeek] = useState(0);
   const [staff, setStaff] = useState<User[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -324,16 +325,18 @@ export default function SchedulePage() {
             Plan and manage your team&apos;s shifts
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2">
-            <Sparkles className="h-4 w-4" />
-            Auto-Schedule AI
-          </Button>
-          <Button className="gap-2" onClick={() => openCreateModal()}>
-            <Plus className="h-4 w-4" />
-            Create Shift
-          </Button>
-        </div>
+        {isPrivileged && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              Auto-Schedule AI
+            </Button>
+            <Button className="gap-2" onClick={() => openCreateModal()}>
+              <Plus className="h-4 w-4" />
+              Create Shift
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Week Navigation */}
@@ -924,7 +927,7 @@ export default function SchedulePage() {
             >
               Close
             </Button>
-            {selectedShift && (
+            {selectedShift && isPrivileged && (
               <>
                 <Button
                   variant="outline"

@@ -39,8 +39,7 @@ export default function StaffDashboard() {
         // Filter tasks assigned to current user (or unassigned)
         const myTasks = tasksRes.data.filter(
           (t: Task) =>
-            t.assigneeId === user?.id ||
-            (!t.assigneeId && t.status?.toUpperCase() !== "DONE")
+            String(t.assigneeId) === String(user?.id)
         );
         setTasks(myTasks);
       }
@@ -57,7 +56,7 @@ export default function StaffDashboard() {
           (s: Shift) => {
             const shiftDate = new Date(s.startTime);
             return (
-              s.userId === user?.id &&
+              String(s.userId) === String(user?.id) &&
               shiftDate >= today &&
               shiftDate < tomorrow
             );
@@ -205,23 +204,21 @@ export default function StaffDashboard() {
               {pendingTasks.length} pending · {doneTasks.length} done
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {pendingTasks.length === 0 && doneTasks.length === 0 ? (
-              <div className="text-center py-6">
-                <CheckSquare className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  No tasks assigned to you
-                </p>
+          <CardContent className="pt-6">
+            {tasks.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <CheckSquare className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                <p>No tasks assigned to you.</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {pendingTasks.map((task) => {
                   const pCfg =
                     priorityConfig[task.priority?.toUpperCase() as keyof typeof priorityConfig] ||
-                    priorityConfig[task.priority?.toLowerCase() as keyof typeof priorityConfig];
+                    priorityConfig.MEDIUM;
                   const cCfg =
                     categoryConfig[task.category?.toUpperCase() as keyof typeof categoryConfig] ||
-                    categoryConfig[task.category?.toLowerCase() as keyof typeof categoryConfig];
+                    categoryConfig.cleaned;
 
                   return (
                     <div
@@ -230,30 +227,42 @@ export default function StaffDashboard() {
                     >
                       <button
                         onClick={() => handleToggleTask(task)}
-                        className="mt-0.5 w-5 h-5 rounded border-2 border-muted-foreground/40 hover:border-primary transition-colors shrink-0 flex items-center justify-center"
-                      />
+                        className={`mt-0.5 h-5 w-5 rounded border ${
+                          task.status === "DONE"
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-muted-foreground/30 hover:border-primary"
+                        } flex items-center justify-center transition-colors`}
+                      >
+                        {task.status === "DONE" && (
+                          <CheckSquare className="h-3.5 w-3.5" />
+                        )}
+                      </button>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground text-sm">
+                        <p
+                          className={`text-sm font-medium leading-none ${
+                            task.status === "DONE"
+                              ? "text-muted-foreground line-through"
+                              : "text-foreground"
+                          }`}
+                        >
                           {task.title}
                         </p>
                         {task.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                             {task.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          {pCfg && (
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] px-1.5 py-0 ${pCfg.color}`}
-                            >
-                              {pCfg.label}
-                            </Badge>
-                          )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${pCfg.color}`}
+                          >
+                            {pCfg.label}
+                          </Badge>
                           {cCfg && (
                             <Badge
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0"
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0 h-5"
                             >
                               {cCfg.label}
                             </Badge>
@@ -263,38 +272,28 @@ export default function StaffDashboard() {
                           )}
                         </div>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
                     </div>
                   );
                 })}
 
-                {/* Completed tasks (collapsed) */}
                 {doneTasks.length > 0 && (
                   <div className="pt-2 border-t border-border mt-3">
                     <p className="text-xs text-muted-foreground mb-2">
                       Completed ({doneTasks.length})
                     </p>
-                    {doneTasks.slice(0, 3).map((task) => (
-                      <div
-                        key={task.id}
-                        className="flex items-center gap-3 p-2 rounded-lg"
-                      >
-                        <button
-                          onClick={() => handleToggleTask(task)}
-                          className="w-5 h-5 rounded bg-primary/20 border-2 border-primary shrink-0 flex items-center justify-center"
+                    <div className="space-y-2 opacity-60 hover:opacity-100 transition-opacity">
+                      {doneTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className="flex items-center gap-2 p-2 rounded bg-muted/20"
                         >
-                          <div className="w-2.5 h-2.5 bg-primary rounded-sm" />
-                        </button>
-                        <span className="text-sm text-muted-foreground line-through">
-                          {task.title}
-                        </span>
-                      </div>
-                    ))}
-                    {doneTasks.length > 3 && (
-                      <p className="text-xs text-muted-foreground pl-8">
-                        +{doneTasks.length - 3} more completed
-                      </p>
-                    )}
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                          <span className="text-sm line-through text-muted-foreground">
+                            {task.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

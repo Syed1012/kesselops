@@ -433,3 +433,43 @@ export async function deleteTask(id: number): Promise<ApiResponse<void>> {
   return fetchApi<void>(`/tasks/${id}`, { method: 'DELETE' });
 }
 
+// ─── Handover API ─────────────────────────────────────────
+
+export interface Handover {
+  id: number;
+  fromShiftId: number;
+  toShiftId: number | null;
+  authorUserId: number;
+  summary: string;
+  openIssues: string | null;
+  nextSteps: string | null;
+  acknowledgedByUserId: number | null;
+  acknowledgedAt: string | null;
+  createdAt: string;
+}
+
+export async function createHandover(shiftId: number, data: {
+  toShiftId: number;
+  summary: string;
+  openIssues?: string;
+  nextSteps?: string;
+}): Promise<ApiResponse<Handover>> {
+  return fetchApi<Handover>(`/shifts/${shiftId}/handover`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOutgoingHandover(shiftId: number): Promise<ApiResponse<Handover>> {
+  return fetchApi<Handover>(`/shifts/${shiftId}/handover`);
+}
+
+export async function getIncomingHandover(shiftId: number): Promise<ApiResponse<Handover>> {
+  return fetchApi<Handover>(`/shifts/${shiftId}/handover/incoming`);
+}
+
+export async function acknowledgeHandover(shiftId: number): Promise<ApiResponse<Handover>> {
+  // The backend acknowledges the *incoming* handover for this shift
+  return fetchApi<Handover>(`/shifts/${shiftId}/handover/acknowledge`, { method: 'POST' });
+}
+
