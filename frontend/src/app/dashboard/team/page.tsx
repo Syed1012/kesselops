@@ -37,6 +37,7 @@ const roleConfig: Record<string, { color: string; label: string }> = {
 
 export default function TeamPage() {
   const { user: currentUser } = useAuth();
+  const isPrivileged = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
   const [staff, setStaff] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -156,10 +157,12 @@ export default function TeamPage() {
     }
   };
 
-  // Filter staff
+  // Filter staff — hide OWNERs for non-privileged roles
   const filteredStaff = staff.filter((member) => {
     const fullName = `${member.firstName} ${member.lastName}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase());
+    const matchesSearch = fullName.includes(searchQuery.toLowerCase());
+    if (!isPrivileged && member.role === "OWNER") return false;
+    return matchesSearch;
   });
 
   // Stats by role
@@ -179,10 +182,12 @@ export default function TeamPage() {
           <h1 className="text-2xl font-bold text-foreground">Team</h1>
           <p className="text-muted-foreground">Manage your venue staff and roles</p>
         </div>
-        <Button className="gap-2" onClick={() => setInviteModalOpen(true)}>
-          <UserPlus className="h-4 w-4" />
-          Add Team Member
-        </Button>
+        {isPrivileged && (
+          <Button className="gap-2" onClick={() => setInviteModalOpen(true)}>
+            <UserPlus className="h-4 w-4" />
+            Add Team Member
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -255,7 +260,7 @@ export default function TeamPage() {
                       <Mail className="h-4 w-4" />
                       Email
                     </Button>
-                    {member.role !== 'OWNER' && member.id !== currentUser?.id && (
+                    {isPrivileged && member.role !== 'OWNER' && member.id !== currentUser?.id && (
                       <Button 
                         variant="ghost" 
                         size="sm" 

@@ -29,19 +29,27 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-context";
 import { VenueProvider, useVenue } from "@/lib/venue-context";
 
-const sidebarItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-  { icon: Calendar, label: "Schedule", href: "/dashboard/schedule" },
-  { icon: Package, label: "Inventory", href: "/dashboard/inventory" },
-  { icon: UtensilsCrossed, label: "Menu", href: "/dashboard/menu" },
-  { icon: Users, label: "Team", href: "/dashboard/team" },
-  { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks" },
-  { icon: Settings, label: "Settings", href: "/dashboard/settings" },
+const allSidebarItems = [
+  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: "all" as const },
+  { icon: Calendar, label: "Schedule", href: "/dashboard/schedule", roles: "all" as const },
+  { icon: Package, label: "Inventory", href: "/dashboard/inventory", roles: "privileged" as const },
+  { icon: UtensilsCrossed, label: "Menu", href: "/dashboard/menu", roles: "privileged" as const },
+  { icon: Users, label: "Team", href: "/dashboard/team", roles: "privileged" as const },
+  { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks", roles: "all" as const },
+  { icon: Settings, label: "Settings", href: "/dashboard/settings", roles: "all" as const },
 ];
+
+const privilegedRoles = ["OWNER", "MANAGER", "CHEF"];
+
+function getSidebarItems(role: string) {
+  if (privilegedRoles.includes(role)) return allSidebarItems;
+  return allSidebarItems.filter((item) => item.roles === "all");
+}
 
 // Desktop Sidebar Component
 function Sidebar({ collapsed, onToggle, user, onLogout }: { collapsed: boolean; onToggle: () => void; user: { firstName: string; lastName: string; role: string } | null; onLogout: () => void }) {
   const pathname = usePathname();
+  const sidebarItems = getSidebarItems(user?.role || "STAFF");
 
   return (
     <aside
@@ -134,6 +142,7 @@ function Sidebar({ collapsed, onToggle, user, onLogout }: { collapsed: boolean; 
 function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
   const [venueDropdownOpen, setVenueDropdownOpen] = useState(false);
   const { venues, selectedVenue, setSelectedVenue, isLoading: venueLoading } = useVenue();
+  const { user } = useAuth();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -212,21 +221,23 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
           </AnimatePresence>
         </div>
 
-        {/* Add Venue Button (Desktop) - Integrated beside selector */}
-        <div className="relative group">
-          <Link href="/dashboard/settings?open=add-venue">
-            <button
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-primary border border-transparent hover:border-border"
-              title="Add new venue"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </Link>
-          {/* Custom Tooltip */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-md border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-            Add new venue
+        {/* Add Venue Button (Desktop) - Only for privileged roles */}
+        {privilegedRoles.includes(user?.role || "") && (
+          <div className="relative group">
+            <Link href="/dashboard/settings?open=add-venue">
+              <button
+                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-primary border border-transparent hover:border-border"
+                title="Add new venue"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </Link>
+            {/* Custom Tooltip */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-md border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+              Add new venue
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Right Section */}
@@ -243,16 +254,21 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
 }
 
 // Mobile Bottom Tab Bar
-function MobileTabBar() {
+function MobileTabBar({ userRole }: { userRole: string }) {
   const pathname = usePathname();
+  const isPrivileged = privilegedRoles.includes(userRole);
 
-  const tabItems = [
-    { icon: LayoutDashboard, label: "Home", href: "/dashboard" },
-    { icon: Calendar, label: "Schedule", href: "/dashboard/schedule" },
-    { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks" },
-    { icon: Package, label: "Stock", href: "/dashboard/inventory" },
-    { icon: Users, label: "Team", href: "/dashboard/team" },
+  const allTabItems = [
+    { icon: LayoutDashboard, label: "Home", href: "/dashboard", roles: "all" as const },
+    { icon: Calendar, label: "Schedule", href: "/dashboard/schedule", roles: "all" as const },
+    { icon: ClipboardList, label: "Tasks", href: "/dashboard/tasks", roles: "all" as const },
+    { icon: Package, label: "Stock", href: "/dashboard/inventory", roles: "privileged" as const },
+    { icon: Users, label: "Team", href: "/dashboard/team", roles: "privileged" as const },
   ];
+
+  const tabItems = isPrivileged
+    ? allTabItems
+    : allTabItems.filter((item) => item.roles === "all");
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border lg:hidden">
@@ -328,7 +344,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </main>
 
-        <MobileTabBar />
+        <MobileTabBar userRole={user?.role || "STAFF"} />
       </div>
     </VenueProvider>
   );

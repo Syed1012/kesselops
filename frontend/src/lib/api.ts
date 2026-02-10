@@ -297,6 +297,18 @@ export async function deleteShift(id: number): Promise<ApiResponse<void>> {
   return fetchApi<void>(`/shifts/${id}`, { method: 'DELETE' });
 }
 
+export async function updateShift(id: number, data: {
+  startTime?: string;
+  endTime?: string;
+  type?: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
+  notes?: string;
+}): Promise<ApiResponse<Shift>> {
+  return fetchApi<Shift>(`/shifts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function startShift(id: number): Promise<ApiResponse<Shift>> {
   return fetchApi<Shift>(`/shifts/${id}/start`, { method: 'POST' });
 }
@@ -327,5 +339,97 @@ export async function inviteUser(data: InviteRequest): Promise<ApiResponse<Invit
 
 export async function deleteUser(id: number): Promise<ApiResponse<void>> {
   return fetchApi<void>(`/users/${id}`, { method: 'DELETE' });
+}
+
+// ─── Task API ─────────────────────────────────────────────
+
+export async function getTasks(venueId: number): Promise<ApiResponse<any[]>> {
+  return fetchApi<any[]>(`/tasks?venueId=${venueId}`);
+}
+
+export async function createTask(data: {
+  title: string;
+  description?: string;
+  priority: string;
+  category: string;
+  requiresPhoto?: boolean;
+  assigneeId?: number | null;
+  dueDate?: string;
+  venueId: number;
+}): Promise<ApiResponse<any>> {
+  return fetchApi<any>('/tasks', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function createTasksBatch(data: {
+  venueId: number;
+  templateName: string;
+  tasks: { title: string; description: string; priority: string; category: string; requiresPhoto: boolean }[];
+}): Promise<ApiResponse<any[]>> {
+  return fetchApi<any[]>('/tasks/batch', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateTask(id: number, data: {
+  title: string;
+  description?: string;
+  priority: string;
+  category: string;
+  requiresPhoto?: boolean;
+  assigneeId?: number | null;
+  dueDate?: string;
+}): Promise<ApiResponse<any>> {
+  return fetchApi<any>(`/tasks/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateTaskStatus(id: number, status: string): Promise<ApiResponse<any>> {
+  return fetchApi<any>(`/tasks/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function uploadTaskPhoto(id: number, file: File, markDone: boolean = true): Promise<ApiResponse<any>> {
+  const token = getStoredToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('markDone', String(markDone));
+
+  try {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/tasks/${id}/photo`,
+      {
+        method: 'POST',
+        headers,
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { success: false, data: null, error: errorData.error || `HTTP ${response.status}` };
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Upload Error:', error);
+    return { success: false, data: null, error: error instanceof Error ? error.message : 'Upload failed' };
+  }
+}
+
+export async function deleteTask(id: number): Promise<ApiResponse<void>> {
+  return fetchApi<void>(`/tasks/${id}`, { method: 'DELETE' });
 }
 

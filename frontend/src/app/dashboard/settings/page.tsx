@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAuth } from "@/lib/auth-context";
 import { useVenue } from "@/lib/venue-context";
 import { createVenue, updateVenue } from "@/lib/api";
 import { toast } from "sonner";
@@ -88,6 +89,8 @@ const venueTypes = [
 ];
 
 export default function SettingsPage() {
+  const { user: currentUser } = useAuth();
+  const isPrivileged = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
   const { venues, selectedVenue, setSelectedVenue, refreshVenues } = useVenue();
 
   // Edit venue form state
@@ -262,7 +265,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Venue Information — Editable */}
+      {/* Venue Information — Editable (privileged only) */}
+      {isPrivileged && (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -394,10 +398,13 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* All Settings */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {settingsSections.map((section, i) => (
+        {settingsSections
+          .filter((section) => isPrivileged || section.title === "Account")
+          .map((section, i) => (
           <motion.div
             key={section.href}
             initial={{ opacity: 0, y: 10 }}
@@ -424,7 +431,8 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* Danger Zone */}
+      {/* Danger Zone (privileged only) */}
+      {isPrivileged && (
       <Card className="border-danger/30">
         <CardHeader>
           <CardTitle className="text-lg text-danger">Danger Zone</CardTitle>
@@ -442,6 +450,7 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+      )}
 
       {/* Add Venue Modal */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>

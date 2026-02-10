@@ -13,6 +13,7 @@ import {
   Loader2,
   Trash2,
   X,
+  Save,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import {
   getUsers,
   getShifts,
   createShift,
+  updateShift,
   deleteShift,
   type User,
   type Shift,
@@ -90,7 +92,8 @@ export default function SchedulePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [editingShiftId, setEditingShiftId] = useState<number | null>(null);
 
   // Create Shift Modal State
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -178,9 +181,9 @@ export default function SchedulePage() {
     return new Date(shift.startTime).toISOString().split("T")[0];
   };
 
-  const handleCreateShift = async (e: React.FormEvent) => {
+  const handleSubmitShift = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shiftForm.userId) {
+    if (!editingShiftId && !shiftForm.userId) {
       toast.error("Please select a staff member");
       return;
     }
@@ -200,25 +203,44 @@ export default function SchedulePage() {
         endDate.setDate(endDate.getDate() + 1);
       }
 
-      const response = await createShift({
-        venueId: 1,
-        userId: parseInt(shiftForm.userId),
-        startTime: startDate.toISOString(),
-        endTime: endDate.toISOString(),
-        type: shiftForm.type,
-        notes: shiftForm.notes || undefined,
-      });
-
-      if (response.success) {
-        toast.success("Shift created!");
-        setCreateModalOpen(false);
-        resetForm();
-        loadData();
+      if (editingShiftId) {
+        // Update existing shift
+        const response = await updateShift(editingShiftId, {
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString(),
+          type: shiftForm.type,
+          notes: shiftForm.notes || undefined,
+        });
+        if (response.success) {
+          toast.success("Shift updated!");
+          setCreateModalOpen(false);
+          setEditingShiftId(null);
+          resetForm();
+          loadData();
+        } else {
+          toast.error(response.error || "Failed to update shift");
+        }
       } else {
-        toast.error(response.error || "Failed to create shift");
+        // Create new shift
+        const response = await createShift({
+          venueId: 1,
+          userId: parseInt(shiftForm.userId),
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString(),
+          type: shiftForm.type,
+          notes: shiftForm.notes || undefined,
+        });
+        if (response.success) {
+          toast.success("Shift created!");
+          setCreateModalOpen(false);
+          resetForm();
+          loadData();
+        } else {
+          toast.error(response.error || "Failed to create shift");
+        }
       }
     } catch {
-      toast.error("Failed to create shift");
+      toast.error(editingShiftId ? "Failed to update shift" : "Failed to create shift");
     } finally {
       setIsCreating(false);
     }
@@ -231,7 +253,7 @@ export default function SchedulePage() {
       const response = await deleteShift(selectedShift.id);
       if (response.success) {
         toast.success("Shift deleted");
-        setDeleteModalOpen(false);
+        setDetailsModalOpen(false);
         setSelectedShift(null);
         loadData();
       } else {
@@ -242,6 +264,22 @@ export default function SchedulePage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const openEditShift = (shift: Shift) => {
+    const start = new Date(shift.startTime);
+    const end = new Date(shift.endTime);
+    setEditingShiftId(shift.id);
+    setShiftForm({
+      userId: String(shift.userId || ""),
+      date: start.toISOString().split("T")[0],
+      type: shift.type,
+      startTime: `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`,
+      endTime: `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
+      notes: shift.notes || "",
+    });
+    setDetailsModalOpen(false);
+    setCreateModalOpen(true);
   };
 
   const handleShiftTypeChange = (type: string) => {
@@ -255,6 +293,7 @@ export default function SchedulePage() {
   };
 
   const resetForm = () => {
+    setEditingShiftId(null);
     setShiftForm({
       userId: "",
       date: "",
@@ -266,6 +305,7 @@ export default function SchedulePage() {
   };
 
   const openCreateModal = (date?: string, userId?: string) => {
+    setEditingShiftId(null);
     setShiftForm({
       ...shiftForm,
       date: date || weekDates[0].fullDate,
@@ -563,7 +603,7 @@ export default function SchedulePage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedShift(shift);
-                                setDeleteModalOpen(true);
+                                setDetailsModalOpen(true);
                               }}
                             >
                               <div className="p-1 h-full flex flex-col justify-between overflow-hidden">
@@ -657,39 +697,51 @@ export default function SchedulePage() {
         </>
       )}
 
-      {/* Create Shift Modal */}
-      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+      {/* Create/Edit Shift Modal */}
+      <Dialog open={createModalOpen} onOpenChange={(open) => { setCreateModalOpen(open); if (!open) resetForm(); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Shift</DialogTitle>
+            <DialogTitle>{editingShiftId ? "Edit Shift" : "Create Shift"}</DialogTitle>
             <DialogDescription>
-              Assign a shift to a team member
+              {editingShiftId ? "Update the shift details" : "Assign a shift to a team member"}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateShift} className="space-y-4 py-2">
-            {/* Staff Member */}
-            <div className="space-y-2">
-              <Label>Staff Member</Label>
-              <Select
-                value={shiftForm.userId}
-                onValueChange={(val) =>
-                  setShiftForm({ ...shiftForm, userId: val })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select team member..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {staff.map((member) => (
-                    <SelectItem key={member.id} value={String(member.id)}>
-                      {member.firstName} {member.lastName} &middot;{" "}
-                      {member.role.toLowerCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <form onSubmit={handleSubmitShift} className="space-y-4 py-2">
+            {/* Staff Member - read-only when editing */}
+            {!editingShiftId ? (
+              <div className="space-y-2">
+                <Label>Staff Member</Label>
+                <Select
+                  value={shiftForm.userId}
+                  onValueChange={(val) =>
+                    setShiftForm({ ...shiftForm, userId: val })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select team member..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {staff.map((member) => (
+                      <SelectItem key={member.id} value={String(member.id)}>
+                        {member.firstName} {member.lastName} &middot;{" "}
+                        {member.role.toLowerCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Staff Member</Label>
+                <div className="p-2.5 rounded-md bg-muted text-sm text-foreground">
+                  {(() => {
+                    const m = staff.find(s => String(s.id) === shiftForm.userId);
+                    return m ? `${m.firstName} ${m.lastName}` : "Staff member";
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* Date */}
             <div className="space-y-2">
@@ -784,18 +836,18 @@ export default function SchedulePage() {
               </Button>
               <Button
                 type="submit"
-                disabled={isCreating || !shiftForm.date || !shiftForm.userId}
+                disabled={isCreating || !shiftForm.date || (!editingShiftId && !shiftForm.userId)}
                 className="gap-2"
               >
                 {isCreating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating...
+                    {editingShiftId ? "Saving..." : "Creating..."}
                   </>
                 ) : (
                   <>
-                    <Plus className="h-4 w-4" />
-                    Create Shift
+                    {editingShiftId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {editingShiftId ? "Save Changes" : "Create Shift"}
                   </>
                 )}
               </Button>
@@ -804,8 +856,8 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete/Manage Shift Modal */}
-      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+      {/* Shift Details Modal */}
+      <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Shift Details</DialogTitle>
@@ -865,38 +917,43 @@ export default function SchedulePage() {
             </div>
           )}
 
-          <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
-            <p className="text-sm text-red-400 flex items-center gap-2">
-              <Trash2 className="h-4 w-4" />
-              Deleting this shift is permanent and cannot be undone.
-            </p>
-          </div>
-
           <DialogFooter className="gap-2">
             <Button
               variant="outline"
-              onClick={() => setDeleteModalOpen(false)}
+              onClick={() => setDetailsModalOpen(false)}
             >
               Close
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteShift}
-              disabled={isDeleting}
-              className="gap-2"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4" />
-                  Delete Shift
-                </>
-              )}
-            </Button>
+            {selectedShift && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => openEditShift(selectedShift)}
+                  className="gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteShift}
+                  disabled={isDeleting}
+                  className="gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
