@@ -29,4 +29,13 @@ public class PaymentController {
                 request.getCollectedByStaffId());
         return ResponseEntity.status(HttpStatus.CREATED).body(payment);
     }
+
+    /**
+     * GET /api/sessions/{sessionId}/payments - Get all payments for session
+     */
+    @GetMapping("/api/sessions/{sessionId}/payments")
+    public ResponseEntity<java.util.List<Payment>> getSessionPayments(@PathVariable Long sessionId) {
+        java.util.List<Payment> payments = paymentService.getPaymentsBySession(sessionId);
+        return ResponseEntity.ok(payments);
+    }
 }

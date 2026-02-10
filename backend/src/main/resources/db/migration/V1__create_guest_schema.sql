@@ -44,7 +44,8 @@ CREATE TABLE guest.sessions (
     verified_by_staff_id BIGINT,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    closed_at TIMESTAMP
+    closed_at TIMESTAMP,
+    session_code VARCHAR(4)
 );
 
 -- Orders within a session
