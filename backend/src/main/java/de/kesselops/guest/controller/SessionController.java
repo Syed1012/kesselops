@@ -34,4 +34,18 @@ public class SessionController {
         Session session = sessionService.getSession(sessionId);
         return ResponseEntity.ok(session);
     }
+
+    /**
+     * GET /api/sessions/search?code=XXXX - Find session by code
+     */
+    @GetMapping("/api/sessions/search")
+    public ResponseEntity<Session> findSessionByCode(@RequestParam("code") String code) {
+        Session session = sessionService.findSessionByCode(code);
+        return ResponseEntity.ok(session);
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<String> handleSecurityException(SecurityException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+    }
 }

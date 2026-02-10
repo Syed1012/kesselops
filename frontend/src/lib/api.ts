@@ -104,8 +104,8 @@ export interface CreateReservationRequest {
  */
 export async function startSession(tableId: number, code?: string | null): Promise<Session> {
     const url = code
-        ? `${API_BASE}/tables/${tableId}/sessions/start?code=${code}`
-        : `${API_BASE}/tables/${tableId}/sessions/start`;
+        ? `${API_BASE}/api/tables/${tableId}/sessions/start?code=${code}`
+        : `${API_BASE}/api/tables/${tableId}/sessions/start`;
 
     const res = await fetch(url, {
         method: 'POST',
@@ -126,7 +126,20 @@ export async function startSession(tableId: number, code?: string | null): Promi
  * Get session details by ID.
  */
 export async function getSession(sessionId: number): Promise<Session> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}`);
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
+
+    if (!res.ok) {
+        throw new Error('Session not found');
+    }
+
+    return res.json();
+}
+
+/**
+ * Find active session by code.
+ */
+export async function findSessionByCode(code: string): Promise<Session> {
+    const res = await fetch(`${API_BASE}/api/sessions/search?code=${code}`);
 
     if (!res.ok) {
         throw new Error('Session not found');
@@ -139,7 +152,7 @@ export async function getSession(sessionId: number): Promise<Session> {
  * Create an order for a session.
  */
 export async function createOrder(sessionId: number, request: CreateOrderRequest): Promise<Order> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/orders`, {
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
@@ -156,7 +169,7 @@ export async function createOrder(sessionId: number, request: CreateOrderRequest
  * Get all orders for a session.
  */
 export async function getSessionOrders(sessionId: number): Promise<Order[]> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/orders`);
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/orders`);
 
     if (!res.ok) {
         throw new Error('Failed to fetch orders');
@@ -172,7 +185,7 @@ export async function updateOrderStatus(
     orderId: number,
     status: Order['status']
 ): Promise<Order> {
-    const res = await fetch(`${API_BASE}/orders/${orderId}/status`, {
+    const res = await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -192,7 +205,7 @@ export async function createPayment(
     sessionId: number,
     request: CreatePaymentRequest
 ): Promise<Payment> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/payments`, {
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
@@ -209,7 +222,7 @@ export async function createPayment(
  * Create a reservation.
  */
 export async function createReservation(request: CreateReservationRequest): Promise<Reservation> {
-    const res = await fetch(`${API_BASE}/reservations`, {
+    const res = await fetch(`${API_BASE}/api/reservations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
@@ -226,7 +239,7 @@ export async function createReservation(request: CreateReservationRequest): Prom
  * Get reservations by venue and date.
  */
 export async function getReservations(venueId: number, date: string): Promise<Reservation[]> {
-    const res = await fetch(`${API_BASE}/reservations?venueId=${venueId}&date=${date}`);
+    const res = await fetch(`${API_BASE}/api/reservations?venueId=${venueId}&date=${date}`);
 
     if (!res.ok) {
         throw new Error('Failed to fetch reservations');
@@ -243,7 +256,7 @@ export async function getReservations(venueId: number, date: string): Promise<Re
  * Get all cart items for a session.
  */
 export async function getSessionCart(sessionId: number): Promise<CartItem[]> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/cart`);
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/cart`);
 
     if (!res.ok) {
         throw new Error('Failed to fetch cart');
@@ -262,7 +275,7 @@ export async function addToCart(
     unitPrice: number,
     menuItemImage?: string
 ): Promise<CartItem> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/cart`, {
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/cart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -287,7 +300,7 @@ export async function updateCartItemQuantity(
     cartItemId: number,
     quantity: number
 ): Promise<CartItem> {
-    const res = await fetch(`${API_BASE}/cart/${cartItemId}?quantity=${quantity}`, {
+    const res = await fetch(`${API_BASE}/api/cart/${cartItemId}?quantity=${quantity}`, {
         method: 'PATCH',
     });
 
@@ -302,7 +315,7 @@ export async function updateCartItemQuantity(
  * Remove item from cart.
  */
 export async function removeFromCart(cartItemId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/cart/${cartItemId}`, {
+    const res = await fetch(`${API_BASE}/api/cart/${cartItemId}`, {
         method: 'DELETE',
     });
 
@@ -315,7 +328,7 @@ export async function removeFromCart(cartItemId: number): Promise<void> {
  * Clear entire cart for a session.
  */
 export async function clearCart(sessionId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/cart`, {
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/cart`, {
         method: 'DELETE',
     });
 

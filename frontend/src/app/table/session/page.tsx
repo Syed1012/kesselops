@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format, addDays, startOfToday } from "date-fns";
 import { useSessionStore, selectOrdersTotal, selectIsSessionActive, selectCartItemCount } from "@/lib/session-store";
-import { startSession as apiStartSession, getSessionOrders, getSessionCart, addToCart as apiAddToCart, updateCartItemQuantity, removeFromCart as apiRemoveFromCart } from "@/lib/api";
+import { startSession as apiStartSession, getSessionOrders, getSessionCart, addToCart as apiAddToCart, updateCartItemQuantity, removeFromCart as apiRemoveFromCart, findSessionByCode } from "@/lib/api";
 import { JoinSessionModal } from "@/components/join-session-modal";
 import { CartDrawer, CartButton } from "@/components/cart-drawer";
 import { PaymentModal } from "@/components/payment-modal";
@@ -237,6 +237,7 @@ function TableSessionPageContent() {
 
   const [sessionError, setSessionError] = useState<string | null>(null);
   const containerRef = useRef(null);
+  const initSessionRef = useRef<string | null>(null);
   const searchParams = useSearchParams();
 
   // Session store
@@ -251,6 +252,9 @@ function TableSessionPageContent() {
     const codeFromUrl = searchParams.get('code'); // Optional now
 
     if (tableId && !session) {
+      // Prevent double-initialization in React Strict Mode
+      if (initSessionRef.current === tableId) return;
+      initSessionRef.current = tableId;
       setTableInfo(parseInt(tableId), codeFromUrl || '');
 
       // Check localStorage for previously used code for this table
@@ -285,8 +289,23 @@ function TableSessionPageContent() {
 
   const handleJoinSession = async (code: string) => {
     const tableId = searchParams.get('tableId');
-    if (!tableId) return;
 
+    // Case 1: Searching for a session by code (no table ID yet)
+    if (!tableId) {
+      setIsJoining(true);
+      setJoinError(null);
+      try {
+        const foundSession = await findSessionByCode(code);
+        // Correctly redirect using window.location to ensure full reload handling
+        window.location.href = `/table/session?tableId=${foundSession.tableId}&code=${code}`;
+      } catch (err: any) {
+        setJoinError('Session not found. Please check the code.');
+        setIsJoining(false);
+      }
+      return;
+    }
+
+    // Case 2: Joining a specific table (table ID present)
     setIsJoining(true);
     setJoinError(null);
 
@@ -501,6 +520,19 @@ function TableSessionPageContent() {
           >
             <CalendarDays className="h-5 w-5" />
             Reserve Table
+          </motion.button>
+        )}
+
+        {/* Join by Code Button - only show if no active session AND no tableId */}
+        {!isSessionActive && !searchParams.get('tableId') && (
+          <motion.button
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 1.1 }}
+            onClick={() => setIsJoinModalOpen(true)}
+            className="bg-neutral-800 text-white px-8 py-4 font-bold uppercase tracking-widest shadow-lg border border-white/10 hover:bg-neutral-700 transition-all rounded-full flex items-center gap-3"
+          >
+            Enter Code
           </motion.button>
         )}
       </div>
