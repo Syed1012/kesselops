@@ -32,8 +32,8 @@ function MouseSpotlight() {
   }
 
   return (
-    <div 
-      className="absolute inset-0 z-0 overflow-hidden pointer-events-none" 
+    <div
+      className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
       onMouseMove={handleMouseMove}
     >
       <motion.div
@@ -113,9 +113,9 @@ function FloatingDashboardMockup() {
     <div className="relative w-full max-w-[600px] perspective-1000 h-[500px] flex items-center justify-center">
       {/* Glow effect behind card */}
       <div className="absolute inset-0 bg-gradient-to-r from-violet-500/20 to-cyan-500/20 blur-[80px] scale-90" />
-      
+
       {/* Main Dashboard Card */}
-      <motion.div 
+      <motion.div
         className="relative z-20 w-full bg-[#0f1629]/80 backdrop-blur-2xl border border-[#1e293b] rounded-3xl p-8 shadow-2xl shadow-violet-500/20"
         initial={{ opacity: 0, y: 100, rotateX: 20 }}
         animate={{ opacity: 1, y: 0, rotateX: 0 }}
@@ -125,7 +125,7 @@ function FloatingDashboardMockup() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <motion.div 
+            <motion.div
               className="w-12 h-12 bg-gradient-to-br from-violet-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-violet-500/30"
               whileHover={{ scale: 1.1, rotate: 10 }}
             >
@@ -136,7 +136,7 @@ function FloatingDashboardMockup() {
               <p className="font-bold text-white text-lg tracking-tight">The Midnight Lounge</p>
             </div>
           </div>
-          <motion.span 
+          <motion.span
             className="px-4 py-1.5 bg-[#10b981]/10 text-[#10b981] text-xs font-bold rounded-full border border-[#10b981]/20 tracking-wider"
             animate={{ boxShadow: ["0 0 0px rgba(16, 185, 129, 0)", "0 0 15px rgba(16, 185, 129, 0.3)", "0 0 0px rgba(16, 185, 129, 0)"] }}
             transition={{ duration: 2, repeat: Infinity }}
@@ -173,7 +173,7 @@ function FloatingDashboardMockup() {
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          <motion.button 
+          <motion.button
             className="flex-1 bg-[#7c3aed] text-white text-sm font-semibold py-4 rounded-xl hover:bg-[#6d28d9] transition-all relative overflow-hidden group shadow-lg shadow-violet-500/25"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -181,7 +181,7 @@ function FloatingDashboardMockup() {
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
             View Dashboard
           </motion.button>
-          <motion.button 
+          <motion.button
             className="flex-1 bg-[#1e293b]/50 text-slate-300 text-sm font-semibold py-4 rounded-xl border border-[#334155] hover:bg-[#1e293b] transition-colors"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -269,7 +269,7 @@ function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <motion.div 
+            <motion.div
               className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full mb-8 backdrop-blur-sm"
               whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.1)" }}
             >
@@ -281,20 +281,20 @@ function HeroSection() {
           {/* Staggered Text Reveal */}
           <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight text-white mb-8 leading-[1]">
             <span className="block overflow-hidden">
-              <motion.span 
+              <motion.span
                 className="block"
-                initial={{ y: "100%" }} 
-                animate={{ y: 0 }} 
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
                 transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               >
                 Order from
               </motion.span>
             </span>
             <span className="block overflow-hidden">
-              <motion.span 
+              <motion.span
                 className="block text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-white to-cyan-400"
-                initial={{ y: "100%" }} 
-                animate={{ y: 0 }} 
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
                 transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
               >
                 Chaos.
@@ -308,7 +308,7 @@ function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
           >
-            The comprehensive operating system for modern hospitality. 
+            The comprehensive operating system for modern hospitality.
             Sync front-of-house flow with back-of-house discipline.
           </motion.p>
 
@@ -318,9 +318,9 @@ function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
           >
-            <Link href="/venue" className="w-full sm:w-auto">
-              <Button 
-                size="lg" 
+            <Link href="/table/session" className="w-full sm:w-auto">
+              <Button
+                size="lg"
                 className="w-full sm:w-auto text-base px-10 h-14 bg-white text-[#0a0f1a] hover:bg-slate-200 transition-all font-bold tracking-wide"
               >
                 View Live Venue
@@ -402,7 +402,7 @@ function FeaturesSection() {
     <section className="relative py-32 bg-[#0a0f1a] z-20">
       <div className="max-w-7xl mx-auto px-6">
         <div className="mb-24">
-          <motion.h2 
+          <motion.h2
             className="text-4xl md:text-5xl font-bold text-white mb-6"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -429,7 +429,7 @@ function FeaturesSection() {
               </div>
               <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
               <p className="text-slate-400 text-lg leading-relaxed">{feature.description}</p>
-              
+
               {/* Hover Glow */}
               <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-violet-500/5 rounded-full blur-3xl group-hover:bg-violet-500/10 transition-colors" />
             </motion.div>
@@ -446,38 +446,38 @@ function FeaturesSection() {
 function CTASection() {
   return (
     <section className="relative py-40 bg-[#0a0f1a] overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f1a] via-[#0f1629] to-[#0a0f1a]" />
-        
-        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-            <motion.h2 
-                className="text-5xl md:text-7xl font-bold text-white mb-8 tracking-tight"
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-            >
-                Start your <span className="text-violet-500">legacy.</span>
-            </motion.h2>
-            
-            <motion.p 
-                className="text-xl text-slate-400 mb-12 max-w-2xl mx-auto"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                viewport={{ once: true }}
-            >
-                Join the platform that powers the best venues in the world.
-                No credit card required. Cancel anytime.
-            </motion.p>
-            
-            <Link href="/register">
-                <Button 
-                    size="lg" 
-                    className="h-16 px-12 text-lg bg-white text-[#0a0f1a] hover:bg-slate-200 hover:scale-105 transition-all shadow-2xl shadow-white/10"
-                >
-                    Start Free Trial
-                </Button>
-            </Link>
-        </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f1a] via-[#0f1629] to-[#0a0f1a]" />
+
+      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        <motion.h2
+          className="text-5xl md:text-7xl font-bold text-white mb-8 tracking-tight"
+          initial={{ opacity: 0, scale: 0.9 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+        >
+          Start your <span className="text-violet-500">legacy.</span>
+        </motion.h2>
+
+        <motion.p
+          className="text-xl text-slate-400 mb-12 max-w-2xl mx-auto"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          viewport={{ once: true }}
+        >
+          Join the platform that powers the best venues in the world.
+          No credit card required. Cancel anytime.
+        </motion.p>
+
+        <Link href="/register">
+          <Button
+            size="lg"
+            className="h-16 px-12 text-lg bg-white text-[#0a0f1a] hover:bg-slate-200 hover:scale-105 transition-all shadow-2xl shadow-white/10"
+          >
+            Start Free Trial
+          </Button>
+        </Link>
+      </div>
     </section>
   );
 }
@@ -495,7 +495,7 @@ function Navbar() {
           </div>
           <span className="text-white font-bold text-xl tracking-tight hidden sm:block">KesselOps</span>
         </Link>
-        
+
         <div className="flex items-center gap-4">
           <ThemeToggle />
           <Link href="/login">
@@ -519,9 +519,9 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
         <p className="text-slate-500 text-sm">© 2026 KesselOps Inc.</p>
         <div className="flex gap-8 text-sm text-slate-500">
-            <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
-            <Link href="#" className="hover:text-white transition-colors">Terms</Link>
-            <Link href="#" className="hover:text-white transition-colors">Twitter</Link>
+          <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
+          <Link href="#" className="hover:text-white transition-colors">Terms</Link>
+          <Link href="#" className="hover:text-white transition-colors">Twitter</Link>
         </div>
       </div>
     </footer>

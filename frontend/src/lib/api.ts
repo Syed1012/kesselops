@@ -1,475 +1,799 @@
 /**
+ * Guest Service API Client
+ * Type-safe API client for frontend-backend communication
+ */
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// ============================================
+// TYPES
+// ============================================
+
+export interface Session {
+    id: number;
+    tableId: number;
+    venueId: number;
+    reservationId: number | null;
+    assignedStaffId: number | null;
+    verifiedByStaffId: number | null;
+    status: 'ACTIVE' | 'CLOSED';
+    startedAt: string;
+    closedAt: string | null;
+    sessionCode?: string;
+}
+
+export interface Order {
+    id: number;
+    sessionId: number;
+    status: 'PENDING' | 'KITCHEN' | 'READY' | 'SERVED';
+    totalAmount: number;
+    items: OrderItem[];
+    createdAt: string;
+}
+
+export interface OrderItem {
+    id: number;
+    menuItemId: number;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+}
+
+export interface Payment {
+    id: number;
+    sessionId: number;
+    amount: number;
+    paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
+    collectedByStaffId: number | null;
+    paidAt: string;
+}
+
+export interface Reservation {
+    id: number;
+    guestId: number | null;
+    venueId: number;
+    partySize: number;
+    reservationTime: string;
+    status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'COMPLETED' | 'CANCELLED';
+    createdAt: string;
+}
+
+export interface CartItem {
+    id: number;
+    sessionId: number;
+    menuItemId: number;
+    menuItemName: string;
+    quantity: number;
+    unitPrice: number;
+    menuItemImage?: string;
+    addedAt: string;
+}
+
+// ============================================
+// REQUEST TYPES
+// ============================================
+
+export interface CreateOrderRequest {
+    items: Array<{
+        menuItemId: number;
+        quantity: number;
+        unitPrice: number;
+    }>;
+}
+
+export interface CreatePaymentRequest {
+    amount: number;
+    paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
+    collectedByStaffId?: number;
+}
+
+export interface CreateReservationRequest {
+    venueId: number;
+    guestId?: number;
+    partySize: number;
+    reservationTime: string;
+}
+
+// ============================================
+// API FUNCTIONS
+// ============================================
+
+/**
+ * Start a session via QR scan.
+ * @param tableId The table ID
+ * @param code Optional session code (required if joining an existing active session)
+ */
+export async function startSession(tableId: number, code?: string | null): Promise<Session> {
+    const url = code
+        ? `${API_BASE}/tables/${tableId}/sessions/start?code=${code}`
+        : `${API_BASE}/tables/${tableId}/sessions/start`;
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+        if (res.status === 403 || res.status === 401) {
+            throw new Error('AUTH_REQUIRED');
+        }
+        throw new Error('Failed to start session');
+    }
+
+    return res.json();
+}
+
+/**
+ * Get session details by ID.
+ */
+export async function getSession(sessionId: number): Promise<Session> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}`);
+
+    if (!res.ok) {
+        throw new Error('Session not found');
+    }
+
+    return res.json();
+}
+
+/**
+ * Create an order for a session.
+ */
+export async function createOrder(sessionId: number, request: CreateOrderRequest): Promise<Order> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to create order');
+    }
+
+    return res.json();
+}
+
+/**
+ * Get all orders for a session.
+ */
+export async function getSessionOrders(sessionId: number): Promise<Order[]> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/orders`);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch orders');
+    }
+
+    return res.json();
+}
+
+/**
+ * Update order status (for staff use).
+ */
+export async function updateOrderStatus(
+    orderId: number,
+    status: Order['status']
+): Promise<Order> {
+    const res = await fetch(`${API_BASE}/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to update order status');
+    }
+
+    return res.json();
+}
+
+/**
+ * Create a payment for a session.
+ */
+export async function createPayment(
+    sessionId: number,
+    request: CreatePaymentRequest
+): Promise<Payment> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to create payment');
+    }
+
+    return res.json();
+}
+
+/**
+ * Create a reservation.
+ */
+export async function createReservation(request: CreateReservationRequest): Promise<Reservation> {
+    const res = await fetch(`${API_BASE}/reservations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to create reservation');
+    }
+
+    return res.json();
+}
+
+/**
+ * Get reservations by venue and date.
+ */
+export async function getReservations(venueId: number, date: string): Promise<Reservation[]> {
+    const res = await fetch(`${API_BASE}/reservations?venueId=${venueId}&date=${date}`);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch reservations');
+    }
+
+    return res.json();
+}
+
+// ============================================
+// CART API FUNCTIONS
+// ============================================
+
+/**
+ * Get all cart items for a session.
+ */
+export async function getSessionCart(sessionId: number): Promise<CartItem[]> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/cart`);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch cart');
+    }
+
+    return res.json();
+}
+
+/**
+ * Add item to cart.
+ */
+export async function addToCart(
+    sessionId: number,
+    menuItemId: number,
+    menuItemName: string,
+    unitPrice: number,
+    menuItemImage?: string
+): Promise<CartItem> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/cart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            menuItemId,
+            menuItemName,
+            unitPrice,
+            menuItemImage,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to add to cart');
+    }
+
+    return res.json();
+}
+
+/**
+ * Update cart item quantity.
+ */
+export async function updateCartItemQuantity(
+    cartItemId: number,
+    quantity: number
+): Promise<CartItem> {
+    const res = await fetch(`${API_BASE}/cart/${cartItemId}?quantity=${quantity}`, {
+        method: 'PATCH',
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to update cart item');
+    }
+
+    return res.json();
+}
+
+/**
+ * Remove item from cart.
+ */
+export async function removeFromCart(cartItemId: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/cart/${cartItemId}`, {
+        method: 'DELETE',
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to remove from cart');
+    }
+}
+
+/**
+ * Clear entire cart for a session.
+ */
+export async function clearCart(sessionId: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/cart`, {
+        method: 'DELETE',
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to clear cart');
+    }
+}
+/**
  * API Client for KesselOps Backend
  * Provides typed access to inventory and menu endpoints
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 // Types for API responses
 export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-  timestamp: string;
+    success: boolean;
+    data: T;
+    message?: string;
+    timestamp: string;
 }
 
 export interface PagedResponse<T> {
-  content: T[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
+    content: T[];
+    page: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
 }
 
 // Inventory Types
 export interface InventoryItem {
-  id: number;
-  name: string;
-  sku: string;
-  description: string | null;
-  unit: string;
-  quantityOnHand: number;
-  reorderLevel: number | null;
-  reorderQuantity: number | null;
-  unitCost: number | null;
-  venueId: number;
-  supplierId: number | null;
-  supplierName: string | null;
-  active: boolean;
-  lowStock: boolean;
-  createdAt: string;
-  updatedAt: string;
+    id: number;
+    name: string;
+    sku: string;
+    description: string | null;
+    unit: string;
+    quantityOnHand: number;
+    reorderLevel: number | null;
+    reorderQuantity: number | null;
+    unitCost: number | null;
+    venueId: number;
+    supplierId: number | null;
+    supplierName: string | null;
+    active: boolean;
+    lowStock: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface InventoryItemRequest {
-  name: string;
-  sku: string;
-  description?: string;
-  unit: string;
-  quantityOnHand: number;
-  reorderLevel?: number;
-  reorderQuantity?: number;
-  unitCost?: number;
-  venueId: number;
-  supplierId?: number;
+    name: string;
+    sku: string;
+    description?: string;
+    unit: string;
+    quantityOnHand: number;
+    reorderLevel?: number;
+    reorderQuantity?: number;
+    unitCost?: number;
+    venueId: number;
+    supplierId?: number;
 }
 
 // Supplier Types
 export interface Supplier {
-  id: number;
-  name: string;
-  contactPerson: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  notes: string | null;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
+    id: number;
+    name: string;
+    contactPerson: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    notes: string | null;
+    active: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 // MenuItem Types
 export type MenuCategory =
-  | "COCKTAIL" | "BEER" | "WINE" | "SPIRIT"
-  | "SOFT_DRINK" | "HOT_DRINK" | "FOOD"
-  | "DESSERT" | "SNACK" | "OTHER";
+    | "COCKTAIL" | "BEER" | "WINE" | "SPIRIT"
+    | "SOFT_DRINK" | "HOT_DRINK" | "FOOD"
+    | "DESSERT" | "SNACK" | "OTHER";
 
 export interface MenuItem {
-  id: number;
-  name: string;
-  description: string | null;
-  category: MenuCategory;
-  price: number;
-  cost: number;
-  profitMargin: number;
-  venueId: number;
-  available: boolean;
-  active: boolean;
-  hasRecipe: boolean;
-  createdAt: string;
-  updatedAt: string;
+    id: number;
+    name: string;
+    description: string | null;
+    category: MenuCategory;
+    price: number;
+    cost: number;
+    profitMargin: number;
+    venueId: number;
+    available: boolean;
+    active: boolean;
+    hasRecipe: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface MenuItemRequest {
-  name: string;
-  description?: string;
-  category: MenuCategory;
-  price: number;
-  cost?: number;
-  venueId: number;
+    name: string;
+    description?: string;
+    category: MenuCategory;
+    price: number;
+    cost?: number;
+    venueId: number;
 }
 
 // Menu Types
 export type MenuType =
-  | "DRINKS" | "FOOD" | "HAPPY_HOUR" | "BRUNCH"
-  | "COCKTAILS" | "WINE" | "BEER" | "SPECIALS";
+    | "DRINKS" | "FOOD" | "HAPPY_HOUR" | "BRUNCH"
+    | "COCKTAILS" | "WINE" | "BEER" | "SPECIALS";
 
 export type SyndicationTarget =
-  | "SPEISEKARTE_DE" | "GOOGLE_BUSINESS" | "TRIPADVISOR"
-  | "UBER_EATS" | "LIEFERANDO" | "WOLT";
+    | "SPEISEKARTE_DE" | "GOOGLE_BUSINESS" | "TRIPADVISOR"
+    | "UBER_EATS" | "LIEFERANDO" | "WOLT";
 
 export type SyndicationStatus =
-  | "PENDING" | "IN_PROGRESS" | "SUCCESS" | "FAILED" | "DISABLED";
+    | "PENDING" | "IN_PROGRESS" | "SUCCESS" | "FAILED" | "DISABLED";
 
 export interface MenuSyndication {
-  id: number;
-  menuId: number;
-  target: SyndicationTarget;
-  targetDisplayName: string;
-  status: SyndicationStatus;
-  enabled: boolean;
-  externalId: string | null;
-  externalUrl: string | null;
-  lastSyncAt: string | null;
-  lastError: string | null;
+    id: number;
+    menuId: number;
+    target: SyndicationTarget;
+    targetDisplayName: string;
+    status: SyndicationStatus;
+    enabled: boolean;
+    externalId: string | null;
+    externalUrl: string | null;
+    lastSyncAt: string | null;
+    lastError: string | null;
 }
 
 export interface Menu {
-  id: number;
-  name: string;
-  description: string | null;
-  type: MenuType;
-  venueId: number;
-  active: boolean;
-  displayOrder: number;
-  itemCount: number;
-  items: MenuItem[] | null;
-  syndications: MenuSyndication[];
-  createdAt: string;
-  updatedAt: string;
+    id: number;
+    name: string;
+    description: string | null;
+    type: MenuType;
+    venueId: number;
+    active: boolean;
+    displayOrder: number;
+    itemCount: number;
+    items: MenuItem[] | null;
+    syndications: MenuSyndication[];
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface MenuRequest {
-  name: string;
-  description?: string;
-  type: MenuType;
-  venueId: number;
-  displayOrder?: number;
+    name: string;
+    description?: string;
+    type: MenuType;
+    venueId: number;
+    displayOrder?: number;
 }
 
 // Purchase Order Types
 export type PurchaseOrderStatus =
-  | "DRAFT" | "PENDING" | "APPROVED" | "ORDERED" | "RECEIVED" | "CANCELLED";
+    | "DRAFT" | "PENDING" | "APPROVED" | "ORDERED" | "RECEIVED" | "CANCELLED";
 
 export interface PurchaseOrderLineRequest {
-  inventoryItemId: number;
-  quantity: number;
-  unitCost?: number;
+    inventoryItemId: number;
+    quantity: number;
+    unitCost?: number;
 }
 
 export interface PurchaseOrderRequest {
-  venueId: number;
-  supplierId?: number;
-  notes?: string;
-  lines: PurchaseOrderLineRequest[];
+    venueId: number;
+    supplierId?: number;
+    notes?: string;
+    lines: PurchaseOrderLineRequest[];
 }
 
 export interface PurchaseOrderLineResponse {
-  id: number;
-  inventoryItemId: number;
-  inventoryItemName: string;
-  inventoryItemSku: string;
-  unit: string;
-  quantity: number;
-  unitCost: number;
-  lineTotal: number;
+    id: number;
+    inventoryItemId: number;
+    inventoryItemName: string;
+    inventoryItemSku: string;
+    unit: string;
+    quantity: number;
+    unitCost: number;
+    lineTotal: number;
 }
 
 export interface PurchaseOrderResponse {
-  id: number;
-  venueId: number;
-  supplierId: number | null;
-  supplierName: string | null;
-  status: PurchaseOrderStatus;
-  notes: string | null;
-  totalAmount: number;
-  lines: PurchaseOrderLineResponse[];
-  createdAt: string;
-  updatedAt: string;
+    id: number;
+    venueId: number;
+    supplierId: number | null;
+    supplierName: string | null;
+    status: PurchaseOrderStatus;
+    notes: string | null;
+    totalAmount: number;
+    lines: PurchaseOrderLineResponse[];
+    createdAt: string;
+    updatedAt: string;
 }
 
 // API Error class
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
+    constructor(
+        public status: number,
+        message: string,
+        public details?: unknown
+    ) {
+        super(message);
+        this.name = "ApiError";
+    }
 }
 
 // Fetch wrapper with error handling
 async function fetchApi<T>(
-  endpoint: string,
-  options?: RequestInit
+    endpoint: string,
+    options?: RequestInit
 ): Promise<T> {
-  const url = `${API_BASE}${endpoint}`;
+    const url = `${API_BASE}${endpoint}`;
 
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-    ...options,
-  });
+    const response = await fetch(url, {
+        headers: {
+            "Content-Type": "application/json",
+            ...options?.headers,
+        },
+        ...options,
+    });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new ApiError(
-      response.status,
-      `API Error: ${response.statusText}`,
-      errorBody
-    );
-  }
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new ApiError(
+            response.status,
+            `API Error: ${response.statusText}`,
+            errorBody
+        );
+    }
 
-  return response.json();
+    return response.json();
 }
 
 // ==================== Inventory API ====================
 
 export const inventoryApi = {
-  list: async (venueId: number, page = 0, size = 20, search?: string) => {
-    const params = new URLSearchParams({
-      venueId: venueId.toString(),
-      page: page.toString(),
-      size: size.toString(),
-    });
-    if (search) params.set("search", search);
+    list: async (venueId: number, page = 0, size = 20, search?: string) => {
+        const params = new URLSearchParams({
+            venueId: venueId.toString(),
+            page: page.toString(),
+            size: size.toString(),
+        });
+        if (search) params.set("search", search);
 
-    const res = await fetchApi<ApiResponse<PagedResponse<InventoryItem>>>(`/api/inventory-items?${params}`);
-    return res.data;
-  },
+        const res = await fetchApi<ApiResponse<PagedResponse<InventoryItem>>>(`/api/inventory-items?${params}`);
+        return res.data;
+    },
 
-  getById: async (id: number) => {
-    const res = await fetchApi<ApiResponse<InventoryItem>>(`/api/inventory-items/${id}`);
-    return res.data;
-  },
+    getById: async (id: number) => {
+        const res = await fetchApi<ApiResponse<InventoryItem>>(`/api/inventory-items/${id}`);
+        return res.data;
+    },
 
-  create: async (item: InventoryItemRequest) => {
-    const res = await fetchApi<ApiResponse<InventoryItem>>("/api/inventory-items", {
-      method: "POST",
-      body: JSON.stringify(item),
-    });
-    return res.data;
-  },
+    create: async (item: InventoryItemRequest) => {
+        const res = await fetchApi<ApiResponse<InventoryItem>>("/api/inventory-items", {
+            method: "POST",
+            body: JSON.stringify(item),
+        });
+        return res.data;
+    },
 
-  update: async (id: number, item: InventoryItemRequest) => {
-    const res = await fetchApi<ApiResponse<InventoryItem>>(`/api/inventory-items/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(item),
-    });
-    return res.data;
-  },
+    update: async (id: number, item: InventoryItemRequest) => {
+        const res = await fetchApi<ApiResponse<InventoryItem>>(`/api/inventory-items/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(item),
+        });
+        return res.data;
+    },
 
-  deactivate: async (id: number) => {
-    await fetchApi<ApiResponse<void>>(`/api/inventory-items/${id}`, {
-      method: "DELETE",
-    });
-  },
+    deactivate: async (id: number) => {
+        await fetchApi<ApiResponse<void>>(`/api/inventory-items/${id}`, {
+            method: "DELETE",
+        });
+    },
 
-  getLowStock: async (venueId: number) => {
-    const res = await fetchApi<ApiResponse<InventoryItem[]>>(`/api/inventory-items/low-stock?venueId=${venueId}`);
-    return res.data;
-  },
+    getLowStock: async (venueId: number) => {
+        const res = await fetchApi<ApiResponse<InventoryItem[]>>(`/api/inventory-items/low-stock?venueId=${venueId}`);
+        return res.data;
+    },
 };
 
 // ==================== Supplier API ====================
 
 export const supplierApi = {
-  list: async (page = 0, size = 20, search?: string) => {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      size: size.toString(),
-    });
-    if (search) params.set("search", search);
+    list: async (page = 0, size = 20, search?: string) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString(),
+        });
+        if (search) params.set("search", search);
 
-    return fetchApi<ApiResponse<PagedResponse<Supplier>>>(`/api/suppliers?${params}`);
-  },
+        return fetchApi<ApiResponse<PagedResponse<Supplier>>>(`/api/suppliers?${params}`);
+    },
 
-  getById: async (id: number) => {
-    const res = await fetchApi<ApiResponse<Supplier>>(`/api/suppliers/${id}`);
-    return res.data;
-  },
+    getById: async (id: number) => {
+        const res = await fetchApi<ApiResponse<Supplier>>(`/api/suppliers/${id}`);
+        return res.data;
+    },
 
-  create: async (supplier: Omit<Supplier, "id" | "createdAt" | "updatedAt" | "active">) => {
-    const res = await fetchApi<ApiResponse<Supplier>>("/api/suppliers", {
-      method: "POST",
-      body: JSON.stringify(supplier),
-    });
-    return res.data;
-  },
+    create: async (supplier: Omit<Supplier, "id" | "createdAt" | "updatedAt" | "active">) => {
+        const res = await fetchApi<ApiResponse<Supplier>>("/api/suppliers", {
+            method: "POST",
+            body: JSON.stringify(supplier),
+        });
+        return res.data;
+    },
 };
 
 // ==================== MenuItem API ====================
 
 export const menuItemApi = {
-  list: async (venueId: number, category?: MenuCategory) => {
-    const params = new URLSearchParams({ venueId: venueId.toString() });
-    if (category) params.set("category", category);
+    list: async (venueId: number, category?: MenuCategory) => {
+        const params = new URLSearchParams({ venueId: venueId.toString() });
+        if (category) params.set("category", category);
 
-    const res = await fetchApi<ApiResponse<PagedResponse<MenuItem>>>(`/api/menu-items?${params}`);
-    return res.data?.content ?? [];
-  },
+        const res = await fetchApi<ApiResponse<PagedResponse<MenuItem>>>(`/api/menu-items?${params}`);
+        return res.data?.content ?? [];
+    },
 
-  getById: async (id: number) => {
-    const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}`);
-    return res.data;
-  },
+    getById: async (id: number) => {
+        const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}`);
+        return res.data;
+    },
 
-  create: async (item: MenuItemRequest) => {
-    const res = await fetchApi<ApiResponse<MenuItem>>("/api/menu-items", {
-      method: "POST",
-      body: JSON.stringify(item),
-    });
-    return res.data;
-  },
+    create: async (item: MenuItemRequest) => {
+        const res = await fetchApi<ApiResponse<MenuItem>>("/api/menu-items", {
+            method: "POST",
+            body: JSON.stringify(item),
+        });
+        return res.data;
+    },
 
-  update: async (id: number, item: MenuItemRequest) => {
-    const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(item),
-    });
-    return res.data;
-  },
+    update: async (id: number, item: MenuItemRequest) => {
+        const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(item),
+        });
+        return res.data;
+    },
 
-  toggleAvailability: async (id: number, available: boolean) => {
-    const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}/availability?available=${available}`, {
-      method: "PATCH",
-    });
-    return res.data;
-  },
+    toggleAvailability: async (id: number, available: boolean) => {
+        const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}/availability?available=${available}`, {
+            method: "PATCH",
+        });
+        return res.data;
+    },
 
-  deactivate: async (id: number) => {
-    await fetchApi<ApiResponse<void>>(`/api/menu-items/${id}`, {
-      method: "DELETE",
-    });
-  },
+    deactivate: async (id: number) => {
+        await fetchApi<ApiResponse<void>>(`/api/menu-items/${id}`, {
+            method: "DELETE",
+        });
+    },
 };
 
 // ==================== Menu API ====================
 
 export const menuApi = {
-  list: async (venueId: number, type?: MenuType) => {
-    const params = new URLSearchParams({ venueId: venueId.toString() });
-    if (type) params.set("type", type);
+    list: async (venueId: number, type?: MenuType) => {
+        const params = new URLSearchParams({ venueId: venueId.toString() });
+        if (type) params.set("type", type);
 
-    const res = await fetchApi<ApiResponse<Menu[]>>(`/api/menus?${params}`);
-    return res.data;
-  },
+        const res = await fetchApi<ApiResponse<Menu[]>>(`/api/menus?${params}`);
+        return res.data;
+    },
 
-  getById: async (id: number, includeItems = false) => {
-    const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${id}?includeItems=${includeItems}`);
-    return res.data;
-  },
+    getById: async (id: number, includeItems = false) => {
+        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${id}?includeItems=${includeItems}`);
+        return res.data;
+    },
 
-  create: async (menu: MenuRequest) => {
-    const res = await fetchApi<ApiResponse<Menu>>("/api/menus", {
-      method: "POST",
-      body: JSON.stringify(menu),
-    });
-    return res.data;
-  },
+    create: async (menu: MenuRequest) => {
+        const res = await fetchApi<ApiResponse<Menu>>("/api/menus", {
+            method: "POST",
+            body: JSON.stringify(menu),
+        });
+        return res.data;
+    },
 
-  update: async (id: number, menu: MenuRequest) => {
-    const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(menu),
-    });
-    return res.data;
-  },
+    update: async (id: number, menu: MenuRequest) => {
+        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(menu),
+        });
+        return res.data;
+    },
 
-  deactivate: async (id: number) => {
-    await fetchApi<ApiResponse<void>>(`/api/menus/${id}`, {
-      method: "DELETE",
-    });
-  },
+    deactivate: async (id: number) => {
+        await fetchApi<ApiResponse<void>>(`/api/menus/${id}`, {
+            method: "DELETE",
+        });
+    },
 
-  addItem: async (menuId: number, menuItemId: number) => {
-    const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/items/${menuItemId}`, {
-      method: "POST",
-    });
-    return res.data;
-  },
+    addItem: async (menuId: number, menuItemId: number) => {
+        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/items/${menuItemId}`, {
+            method: "POST",
+        });
+        return res.data;
+    },
 
-  removeItem: async (menuId: number, menuItemId: number) => {
-    const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/items/${menuItemId}`, {
-      method: "DELETE",
-    });
-    return res.data;
-  },
+    removeItem: async (menuId: number, menuItemId: number) => {
+        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/items/${menuItemId}`, {
+            method: "DELETE",
+        });
+        return res.data;
+    },
 
-  addSyndication: async (menuId: number, target: SyndicationTarget, enabled: boolean, configJson?: string) => {
-    const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/syndications`, {
-      method: "POST",
-      body: JSON.stringify({ target, enabled, configJson }),
-    });
-    return res.data;
-  },
+    addSyndication: async (menuId: number, target: SyndicationTarget, enabled: boolean, configJson?: string) => {
+        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/syndications`, {
+            method: "POST",
+            body: JSON.stringify({ target, enabled, configJson }),
+        });
+        return res.data;
+    },
 
-  toggleSyndication: async (menuId: number, syndicationId: number, enabled: boolean) => {
-    await fetchApi<ApiResponse<void>>(`/api/menus/${menuId}/syndications/${syndicationId}?enabled=${enabled}`, {
-      method: "PATCH",
-    });
-  },
+    toggleSyndication: async (menuId: number, syndicationId: number, enabled: boolean) => {
+        await fetchApi<ApiResponse<void>>(`/api/menus/${menuId}/syndications/${syndicationId}?enabled=${enabled}`, {
+            method: "PATCH",
+        });
+    },
 
-  removeSyndication: async (menuId: number, syndicationId: number) => {
-    await fetchApi<ApiResponse<void>>(`/api/menus/${menuId}/syndications/${syndicationId}`, {
-      method: "DELETE",
-    });
-  },
+    removeSyndication: async (menuId: number, syndicationId: number) => {
+        await fetchApi<ApiResponse<void>>(`/api/menus/${menuId}/syndications/${syndicationId}`, {
+            method: "DELETE",
+        });
+    },
 };
 
 // ==================== Purchase Order API ====================
 
 export const purchaseOrderApi = {
-  create: async (order: PurchaseOrderRequest) => {
-    const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>("/api/purchase-orders", {
-      method: "POST",
-      body: JSON.stringify(order),
-    });
-    return res.data;
-  },
+    create: async (order: PurchaseOrderRequest) => {
+        const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>("/api/purchase-orders", {
+            method: "POST",
+            body: JSON.stringify(order),
+        });
+        return res.data;
+    },
 
-  list: async (venueId: number, page = 0, size = 20, status?: PurchaseOrderStatus) => {
-    const params = new URLSearchParams({
-      venueId: venueId.toString(),
-      page: page.toString(),
-      size: size.toString(),
-    });
-    if (status) params.set("status", status);
+    list: async (venueId: number, page = 0, size = 20, status?: PurchaseOrderStatus) => {
+        const params = new URLSearchParams({
+            venueId: venueId.toString(),
+            page: page.toString(),
+            size: size.toString(),
+        });
+        if (status) params.set("status", status);
 
-    const res = await fetchApi<ApiResponse<PagedResponse<PurchaseOrderResponse>>>(`/api/purchase-orders?${params}`);
-    return res.data;
-  },
+        const res = await fetchApi<ApiResponse<PagedResponse<PurchaseOrderResponse>>>(`/api/purchase-orders?${params}`);
+        return res.data;
+    },
 
-  getById: async (id: number) => {
-    const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>(`/api/purchase-orders/${id}`);
-    return res.data;
-  },
+    getById: async (id: number) => {
+        const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>(`/api/purchase-orders/${id}`);
+        return res.data;
+    },
 
-  updateStatus: async (id: number, status: PurchaseOrderStatus) => {
-    const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>(`/api/purchase-orders/${id}/status?status=${status}`, {
-      method: "PATCH",
-    });
-    return res.data;
-  },
+    updateStatus: async (id: number, status: PurchaseOrderStatus) => {
+        const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>(`/api/purchase-orders/${id}/status?status=${status}`, {
+            method: "PATCH",
+        });
+        return res.data;
+    },
 
-  cancel: async (id: number) => {
-    await fetchApi<ApiResponse<void>>(`/api/purchase-orders/${id}`, {
-      method: "DELETE",
-    });
-  },
+    cancel: async (id: number) => {
+        await fetchApi<ApiResponse<void>>(`/api/purchase-orders/${id}`, {
+            method: "DELETE",
+        });
+    },
 };
 
 // Export default object for convenience
 const api = {
-  inventory: inventoryApi,
-  supplier: supplierApi,
-  menuItem: menuItemApi,
-  menu: menuApi,
-  purchaseOrder: purchaseOrderApi,
+    inventory: inventoryApi,
+    supplier: supplierApi,
+    menuItem: menuItemApi,
+    menu: menuApi,
+    purchaseOrder: purchaseOrderApi,
 };
 
 export default api;

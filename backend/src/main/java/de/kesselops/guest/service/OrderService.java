@@ -18,6 +18,7 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final CartService cartService;
 
     /**
      * Create an order for a session.
@@ -50,7 +51,12 @@ public class OrderService {
         }
 
         order.setTotalAmount(orderTotal);
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+
+        // Clear cart after order is placed
+        cartService.clearCart(sessionId);
+
+        return savedOrder;
     }
 
     /**
@@ -72,5 +78,10 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<Order> getOrdersBySession(Long sessionId) {
         return orderRepository.findBySessionId(sessionId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Order> getSessionOrders(Long sessionId) {
+        return getOrdersBySession(sessionId);
     }
 }

@@ -28,6 +28,15 @@ public class OrderController {
     }
 
     /**
+     * GET /api/sessions/{sessionId}/orders - Get all orders for session
+     */
+    @GetMapping("/api/sessions/{sessionId}/orders")
+    public ResponseEntity<java.util.List<Order>> getSessionOrders(@PathVariable Long sessionId) {
+        java.util.List<Order> orders = orderService.getSessionOrders(sessionId);
+        return ResponseEntity.ok(orders);
+    }
+
+    /**
      * PATCH /api/orders/{orderId}/status - Update order status
      */
     @PatchMapping("/api/orders/{orderId}/status")
