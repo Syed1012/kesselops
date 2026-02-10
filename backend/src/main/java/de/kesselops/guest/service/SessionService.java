@@ -82,4 +82,9 @@ public class SessionService {
         session.setVerifiedByStaffId(staffId);
         return sessionRepository.save(session);
     }
+
+    public Session findSessionByCode(String code) {
+        return sessionRepository.findBySessionCodeAndStatus(code, SessionStatus.ACTIVE)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or inactive session code"));
+    }
 }
