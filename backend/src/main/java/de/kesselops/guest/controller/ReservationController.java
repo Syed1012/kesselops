@@ -29,6 +29,10 @@ public class ReservationController {
         Reservation reservation = reservationService.createReservation(
                 request.getVenueId(),
                 request.getGuestId(),
+                request.getGuestName(),
+                request.getGuestEmail(),
+                request.getGuestPhone(),
+                request.getNotes(),
                 request.getReservationTime(),
                 request.getPartySize());
         return ResponseEntity.status(HttpStatus.CREATED).body(reservation);

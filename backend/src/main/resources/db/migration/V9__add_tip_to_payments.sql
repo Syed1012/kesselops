@@ -1,0 +1,1 @@
+ALTER TABLE guest.payments ADD COLUMN tip DECIMAL(10, 2) DEFAULT 0.00;

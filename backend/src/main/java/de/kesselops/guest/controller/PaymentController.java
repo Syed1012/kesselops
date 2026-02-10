@@ -26,7 +26,8 @@ public class PaymentController {
                 sessionId,
                 request.getAmount(),
                 request.getPaymentMethod(),
-                request.getCollectedByStaffId());
+                request.getCollectedByStaffId(),
+                request.getTip());
         return ResponseEntity.status(HttpStatus.CREATED).body(payment);
     }
 

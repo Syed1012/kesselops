@@ -45,6 +45,7 @@ export interface Payment {
     paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
     collectedByStaffId: number | null;
     paidAt: string;
+    tip?: number;
 }
 
 export interface Reservation {
@@ -84,11 +85,16 @@ export interface CreatePaymentRequest {
     amount: number;
     paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
     collectedByStaffId?: number;
+    tip?: number;
 }
 
 export interface CreateReservationRequest {
     venueId: number;
     guestId?: number;
+    guestName?: string;
+    guestEmail?: string;
+    guestPhone?: string;
+    guestNotes?: string;
     partySize: number;
     reservationTime: string;
 }
@@ -120,6 +126,17 @@ export async function startSession(tableId: number, code?: string | null): Promi
     }
 
     return res.json();
+}
+
+/**
+ * Check if a table has an active session.
+ */
+export async function checkActiveSession(tableId: number): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/active-status`);
+    if (res.ok) {
+        return res.json();
+    }
+    return false;
 }
 
 /**
@@ -219,6 +236,19 @@ export async function createPayment(
 }
 
 /**
+ * Get all payments for a session.
+ */
+export async function getSessionPayments(sessionId: number): Promise<Payment[]> {
+    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/payments`);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch payments');
+    }
+
+    return res.json();
+}
+
+/**
  * Create a reservation.
  */
 export async function createReservation(request: CreateReservationRequest): Promise<Reservation> {
@@ -229,7 +259,18 @@ export async function createReservation(request: CreateReservationRequest): Prom
     });
 
     if (!res.ok) {
-        throw new Error('Failed to create reservation');
+        let errorMessage = 'Failed to create reservation';
+        try {
+            const errorData = await res.json();
+            if (errorData?.error?.message) {
+                errorMessage = errorData.error.message;
+            } else if (typeof errorData?.error === 'string') {
+                errorMessage = errorData.error;
+            }
+        } catch (e) {
+            // Ignore JSON parse error, use default message
+        }
+        throw new Error(errorMessage);
     }
 
     return res.json();

@@ -8,9 +8,10 @@ interface JoinSessionModalProps {
     onJoin: (code: string) => void;
     isLoading: boolean;
     error: string | null;
+    onClose?: () => void;
 }
 
-export function JoinSessionModal({ isOpen, onJoin, isLoading, error }: JoinSessionModalProps) {
+export function JoinSessionModal({ isOpen, onJoin, isLoading, error, onClose }: JoinSessionModalProps) {
     const [code, setCode] = useState(["", "", "", ""]);
 
     const handleChange = (index: number, value: string) => {
@@ -50,6 +51,7 @@ export function JoinSessionModal({ isOpen, onJoin, isLoading, error }: JoinSessi
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        onClick={onClose}
                         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
                     />
                     <motion.div
@@ -58,7 +60,15 @@ export function JoinSessionModal({ isOpen, onJoin, isLoading, error }: JoinSessi
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm"
                     >
-                        <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 shadow-2xl">
+                        <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 shadow-2xl relative">
+                            {onClose && (
+                                <button
+                                    onClick={onClose}
+                                    className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            )}
                             <div className="text-center mb-8">
                                 <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Users className="h-8 w-8 text-amber-500" />

@@ -32,10 +32,11 @@ public class PaymentService {
      * @param collectedByStaffId staff who collected payment (for waiter payments)
      */
     public Payment recordPayment(Long sessionId, BigDecimal amount,
-            PaymentMethod paymentMethod, Long collectedByStaffId) {
+            PaymentMethod paymentMethod, Long collectedByStaffId, BigDecimal tip) {
         Payment payment = Payment.builder()
                 .sessionId(sessionId)
                 .amount(amount)
+                .tip(tip != null ? tip : BigDecimal.ZERO)
                 .paymentMethod(paymentMethod)
                 .collectedByStaffId(collectedByStaffId)
                 .build();

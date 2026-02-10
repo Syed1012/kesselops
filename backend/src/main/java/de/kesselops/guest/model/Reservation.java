@@ -26,11 +26,26 @@ public class Reservation {
     @Column(name = "guest_id")
     private Long guestId;
 
+    @Column(name = "guest_name")
+    private String guestName;
+
+    @Column(name = "guest_email")
+    private String guestEmail;
+
+    @Column(name = "guest_phone")
+    private String guestPhone;
+
+    @Column(name = "notes")
+    private String notes;
+
     @Column(name = "venue_id", nullable = false)
     private Long venueId;
 
     @Column(name = "party_size", nullable = false)
     private Integer partySize;
+
+    @Column(name = "table_id")
+    private Long tableId;
 
     @Column(name = "reservation_time", nullable = false)
     private LocalDateTime reservationTime;

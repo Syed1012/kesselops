@@ -44,6 +44,10 @@ public class Payment {
     @Column(name = "paid_at", nullable = false)
     private LocalDateTime paidAt;
 
+    @Column(name = "tip", nullable = false)
+    @Builder.Default
+    private BigDecimal tip = BigDecimal.ZERO;
+
     @PrePersist
     protected void onCreate() {
         paidAt = LocalDateTime.now();

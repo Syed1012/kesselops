@@ -87,4 +87,8 @@ public class SessionService {
         return sessionRepository.findBySessionCodeAndStatus(code, SessionStatus.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or inactive session code"));
     }
+
+    public boolean hasActiveSession(Long tableId) {
+        return sessionRepository.findByTableIdAndStatus(tableId, SessionStatus.ACTIVE).isPresent();
+    }
 }
