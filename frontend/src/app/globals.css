@@ -7,27 +7,39 @@
 
 :root {
   /* Brand Colors - Deep Navy & Violet */
-  --kessel-primary: #7c3aed; /* Vibrant Violet */
-  --kessel-primary-light: #8b5cf6; /* Lighter Violet */
-  --kessel-primary-dark: #6d28d9; /* Darker Violet */
-  --kessel-secondary: #06b6d4; /* Cyan accent */
+  --kessel-primary: #7c3aed;
+  /* Vibrant Violet */
+  --kessel-primary-light: #8b5cf6;
+  /* Lighter Violet */
+  --kessel-primary-dark: #6d28d9;
+  /* Darker Violet */
+  --kessel-secondary: #06b6d4;
+  /* Cyan accent */
 
   /* Backgrounds */
-  --kessel-bg-dark: #0a0f1a; /* Deepest navy */
-  --kessel-bg-card: #0f1629; /* Card background */
-  --kessel-bg-elevated: #1a1f3a; /* Elevated surfaces */
-  --kessel-bg-hover: #252b4a; /* Hover states */
+  --kessel-bg-dark: #0a0f1a;
+  /* Deepest navy */
+  --kessel-bg-card: #0f1629;
+  /* Card background */
+  --kessel-bg-elevated: #1a1f3a;
+  /* Elevated surfaces */
+  --kessel-bg-hover: #252b4a;
+  /* Hover states */
 
   /* Semantic Colors */
   --kessel-success: #10b981;
   --kessel-warning: #f59e0b;
   --kessel-danger: #ef4444;
+  --kessel-popover: #0f1629;
+  /* Card background for popovers */
 
   /* Light mode defaults (dark-first approach) */
   --background: #0a0f1a;
   --foreground: #f1f5f9;
   --card: #0f1629;
   --card-foreground: #f1f5f9;
+  --popover: #0f1629;
+  --popover-foreground: #f1f5f9;
   --muted: #1e293b;
   --muted-foreground: #94a3b8;
   --border: #1e293b;
@@ -50,6 +62,8 @@
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
   --border: #e2e8f0;
@@ -66,6 +80,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);

@@ -17,11 +17,15 @@ import {
   Bell,
   Building2,
   ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+import { CartProvider } from "@/context/cart-context";
 
 import { currentUser, currentVenue, venues, alerts } from "@/lib/mock-data";
 
@@ -108,6 +112,38 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
 // Top Header Component
 function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
   const [venueDropdownOpen, setVenueDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [criticalItems, setCriticalItems] = useState<any[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+
+  // Fetch critically low stock items
+  const fetchCriticalItems = async () => {
+    setLoadingNotifications(true);
+    try {
+      const { inventoryApi } = await import("@/lib/api");
+      const lowStockItems = await inventoryApi.getLowStock(1); // venue ID = 1
+      // Filter only critically low items (quantityOnHand <= 25% of reorderLevel)
+      const critical = lowStockItems?.filter((item: any) => {
+        if (!item.reorderLevel) return false;
+        const ratio = item.quantityOnHand / item.reorderLevel;
+        return ratio <= 0.25;
+      }) || [];
+      setCriticalItems(critical);
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+      setCriticalItems([]);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  // Load notifications when opened
+  const handleNotificationsOpen = (open: boolean) => {
+    setNotificationsOpen(open);
+    if (open) {
+      fetchCriticalItems();
+    }
+  };
 
   return (
     <header
@@ -167,12 +203,65 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
         <ThemeToggle />
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {alerts.length > 0 && (
-            <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
-          )}
-        </Button>
+        <Popover open={notificationsOpen} onOpenChange={handleNotificationsOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              {criticalItems.length > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground">Notifications</h4>
+                {criticalItems.length > 0 && (
+                  <span className="text-xs bg-danger/10 text-danger px-2 py-0.5 rounded-full">
+                    {criticalItems.length}
+                  </span>
+                )}
+              </div>
+
+              {loadingNotifications ? (
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  Loading...
+                </div>
+              ) : criticalItems.length === 0 ? (
+                <div className="py-8 text-center">
+                  <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No notifications</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    All inventory levels are healthy
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {criticalItems.map((item: any) => (
+                    <Link
+                      key={item.id}
+                      href="/dashboard/inventory"
+                      onClick={() => setNotificationsOpen(false)}
+                      className="block p-3 rounded-lg border border-danger/20 bg-danger/5 hover:bg-danger/10 transition-colors"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {item.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Only {item.quantityOnHand} {item.unit} remaining
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         {/* User (Desktop) */}
         <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-border ml-2">
@@ -232,22 +321,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <Header sidebarCollapsed={sidebarCollapsed} />
+    <CartProvider>
+      <div className="min-h-screen bg-background">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+        <Header sidebarCollapsed={sidebarCollapsed} />
 
-      <main
-        className={cn(
-          "pt-16 pb-20 lg:pb-6 min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
-        )}
-      >
-        <div className="p-4 lg:p-6">
-          {children}
-        </div>
-      </main>
+        <main
+          className={cn(
+            "pt-16 pb-20 lg:pb-6 min-h-screen transition-all duration-300",
+            sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+          )}
+        >
+          <div className="p-4 lg:p-6">
+            {children}
+          </div>
+        </main>
 
-      <MobileTabBar />
-    </div>
+        <MobileTabBar />
+      </div>
+    </CartProvider>
   );
 }
