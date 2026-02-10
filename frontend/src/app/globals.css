@@ -10,36 +10,50 @@
 
 :root {
   /* Brand Colors - Deep Navy & Violet */
-  --kessel-primary: #7c3aed; /* Vibrant Violet */
-  --kessel-primary-light: #8b5cf6; /* Lighter Violet */
-  --kessel-primary-dark: #6d28d9; /* Darker Violet */
-  --kessel-secondary: #06b6d4; /* Cyan accent */
+  --kessel-primary: #7c3aed;
+  /* Vibrant Violet */
+  --kessel-primary-light: #8b5cf6;
+  /* Lighter Violet */
+  --kessel-primary-dark: #6d28d9;
+  /* Darker Violet */
+  --kessel-secondary: #06b6d4;
+  /* Cyan accent */
 
   /* Backgrounds */
-  --kessel-bg-dark: #0a0f1a; /* Deepest navy */
-  --kessel-bg-card: #0f1629; /* Card background */
-  --kessel-bg-elevated: #1a1f3a; /* Elevated surfaces */
-  --kessel-bg-hover: #252b4a; /* Hover states */
+  --kessel-bg-dark: #0a0f1a;
+  /* Deepest navy */
+  --kessel-bg-card: #0f1629;
+  /* Card background */
+  --kessel-bg-elevated: #1a1f3a;
+  /* Elevated surfaces */
+  --kessel-bg-hover: #252b4a;
+  /* Hover states */
 
   /* Semantic Colors */
   --kessel-success: #10b981;
   --kessel-warning: #f59e0b;
   --kessel-danger: #ef4444;
+  --kessel-popover: #0f1629;
+  /* Card background for popovers */
 
   /* Light mode defaults (dark-first approach) */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.13 0.028 261.692);
-  --muted: oklch(0.967 0.003 264.542);
-  --muted-foreground: oklch(0.551 0.027 264.364);
-  --border: oklch(0.928 0.006 264.531);
-  --input: oklch(0.928 0.006 264.531);
-  --ring: oklch(0.707 0.022 261.325);
-  --primary: oklch(0.21 0.034 264.665);
-  --primary-foreground: oklch(0.985 0.002 247.839);
-  --secondary: oklch(0.967 0.003 264.542);
-  --secondary-foreground: oklch(0.21 0.034 264.665);
-  --accent: oklch(0.967 0.003 264.542);
-  --accent-foreground: oklch(0.21 0.034 264.665);
+  --background: #0a0f1a;
+  --foreground: #f1f5f9;
+  --card: #0f1629;
+  --card-foreground: #f1f5f9;
+  --popover: #0f1629;
+  --popover-foreground: #f1f5f9;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #7c3aed;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+  --accent: #06b6d4;
+  --accent-foreground: #ffffff;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
@@ -70,6 +84,8 @@
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
   --border: #e2e8f0;
@@ -86,6 +102,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
@@ -201,6 +219,7 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
