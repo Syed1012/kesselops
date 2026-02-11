@@ -110,6 +110,6 @@ public class VenueService {
             String address,
             String city,
             String type,
-            String timezone
-    ) {}
+            String timezone) {
+    }
 }

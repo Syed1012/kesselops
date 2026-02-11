@@ -129,6 +129,12 @@ export function SessionStartFlow({ isOpen, tableId, onSessionStarted, onJoinRequ
                                     </p>
                                 </div>
 
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-2 animate-pulse">
+                                    <p className="text-amber-400 font-medium text-sm">
+                                        👋 Waiter is on the way to confirm!
+                                    </p>
+                                </div>
+
                                 <button
                                     onClick={handleCopy}
                                     className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 flex items-center justify-between hover:border-amber-500/50 hover:bg-black/60 transition-all group active:scale-95"
