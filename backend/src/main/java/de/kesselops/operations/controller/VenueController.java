@@ -58,12 +58,15 @@ public class VenueController {
      * GET /api/venues/{id} - Get venue details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<VenueResponse>> getVenue(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<VenueResponse>> getVenue(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user
+    ) {
         try {
-            Venue venue = venueService.getVenue(id);
+            Venue venue = venueService.getVenue(id, user);
             return ResponseEntity.ok(ApiResponse.success(toVenueResponse(venue)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
@@ -74,16 +77,17 @@ public class VenueController {
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<ApiResponse<VenueResponse>> updateVenue(
             @PathVariable Long id,
-            @Valid @RequestBody CreateVenueRequest request
+            @Valid @RequestBody CreateVenueRequest request,
+            @AuthenticationPrincipal User user
     ) {
         try {
             VenueService.CreateVenueRequest serviceRequest = new VenueService.CreateVenueRequest(
                     request.name(), request.address(), request.city(), request.type(), request.timezone()
             );
-            Venue venue = venueService.updateVenue(id, serviceRequest);
+            Venue venue = venueService.updateVenue(id, serviceRequest, user);
             return ResponseEntity.ok(ApiResponse.success(toVenueResponse(venue)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 

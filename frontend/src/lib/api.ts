@@ -322,6 +322,7 @@ export interface InviteRequest {
   firstName: string;
   lastName: string;
   role: 'MANAGER' | 'CHEF' | 'STAFF' | 'TRAINEE';
+  venueId: number;
 }
 
 export interface InviteResponse {
@@ -472,4 +473,3 @@ export async function acknowledgeHandover(shiftId: number): Promise<ApiResponse<
   // The backend acknowledges the *incoming* handover for this shift
   return fetchApi<Handover>(`/shifts/${shiftId}/handover/acknowledge`, { method: 'POST' });
 }
-

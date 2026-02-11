@@ -2,6 +2,7 @@ package de.kesselops.operations.controller;
 
 import de.kesselops.operations.model.*;
 import de.kesselops.operations.service.ChecklistService;
+import de.kesselops.operations.service.VenueAccessService;
 import de.kesselops.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -22,9 +23,11 @@ import java.util.List;
 public class ChecklistController {
 
     private final ChecklistService checklistService;
+    private final VenueAccessService venueAccessService;
 
-    public ChecklistController(ChecklistService checklistService) {
+    public ChecklistController(ChecklistService checklistService, VenueAccessService venueAccessService) {
         this.checklistService = checklistService;
+        this.venueAccessService = venueAccessService;
     }
 
     /**
@@ -33,8 +36,15 @@ public class ChecklistController {
     @PostMapping
     public ResponseEntity<ApiResponse<ChecklistResponse>> createChecklist(
             @PathVariable Long shiftId,
-            @Valid @RequestBody CreateChecklistRequest request
+            @Valid @RequestBody CreateChecklistRequest request,
+            @AuthenticationPrincipal User user
     ) {
+        try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+        }
+
         Checklist checklist = checklistService.createChecklist(shiftId, request.category(), request.title());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toChecklistResponse(checklist)));
     }
@@ -43,7 +53,16 @@ public class ChecklistController {
      * GET /api/shifts/{shiftId}/checklists - List checklists for shift
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<ChecklistResponse>>> listChecklists(@PathVariable Long shiftId) {
+    public ResponseEntity<ApiResponse<List<ChecklistResponse>>> listChecklists(
+            @PathVariable Long shiftId,
+            @AuthenticationPrincipal User user
+    ) {
+        try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+        }
+
         List<ChecklistResponse> checklists = checklistService.getChecklistsByShift(shiftId).stream()
                 .map(this::toChecklistResponse)
                 .toList();
@@ -56,13 +75,18 @@ public class ChecklistController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ChecklistDetailResponse>> getChecklist(
             @PathVariable Long shiftId,
-            @PathVariable Long id
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user
     ) {
         try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+            if (!venueAccessService.checklistBelongsToShift(id, shiftId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+            }
             Checklist checklist = checklistService.getChecklist(id);
             return ResponseEntity.ok(ApiResponse.success(toChecklistDetailResponse(checklist)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
@@ -73,8 +97,18 @@ public class ChecklistController {
     public ResponseEntity<ApiResponse<TaskResponse>> addTask(
             @PathVariable Long shiftId,
             @PathVariable Long id,
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody CreateTaskRequest request
     ) {
+        try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+            if (!venueAccessService.checklistBelongsToShift(id, shiftId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+            }
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+        }
+
         TaskItem task = checklistService.addTask(id, request.description(), request.sortOrder(), request.requiresPhoto());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toTaskResponse(task)));
     }
@@ -90,11 +124,19 @@ public class ChecklistController {
             @AuthenticationPrincipal User user
     ) {
         try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+            if (!venueAccessService.checklistBelongsToShift(checklistId, shiftId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+            }
+            if (!venueAccessService.taskBelongsToChecklist(taskId, checklistId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Task does not belong to checklist"));
+            }
+
             TaskItem task = checklistService.markTaskDone(taskId, user.getId());
             checklistService.updateChecklistCompletion(checklistId);
             return ResponseEntity.ok(ApiResponse.success(toTaskResponse(task)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
@@ -105,14 +147,23 @@ public class ChecklistController {
     public ResponseEntity<ApiResponse<TaskResponse>> skipTask(
             @PathVariable Long shiftId,
             @PathVariable Long checklistId,
-            @PathVariable Long taskId
+            @PathVariable Long taskId,
+            @AuthenticationPrincipal User user
     ) {
         try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+            if (!venueAccessService.checklistBelongsToShift(checklistId, shiftId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+            }
+            if (!venueAccessService.taskBelongsToChecklist(taskId, checklistId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Task does not belong to checklist"));
+            }
+
             TaskItem task = checklistService.skipTask(taskId);
             checklistService.updateChecklistCompletion(checklistId);
             return ResponseEntity.ok(ApiResponse.success(toTaskResponse(task)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 

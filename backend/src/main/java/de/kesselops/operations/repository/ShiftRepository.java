@@ -31,6 +31,8 @@ public interface ShiftRepository extends JpaRepository<Shift, Long> {
 
     Optional<Shift> findByVenueIdAndIsActiveTrue(Long venueId);
 
+    List<Shift> findByUserId(Long userId);
+
     @Query("SELECT s FROM Shift s WHERE s.venueId = :venueId AND s.type = :type AND " +
             "((s.startTime <= :endTime AND s.endTime >= :startTime))")
     List<Shift> findOverlappingShifts(

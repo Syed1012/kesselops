@@ -1,8 +1,10 @@
 package de.kesselops.operations.controller;
 
 import de.kesselops.operations.model.Handover;
+import de.kesselops.operations.model.Shift;
 import de.kesselops.operations.model.User;
 import de.kesselops.operations.service.HandoverService;
+import de.kesselops.operations.service.VenueAccessService;
 import de.kesselops.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -22,9 +24,11 @@ import java.time.Instant;
 public class HandoverController {
 
     private final HandoverService handoverService;
+    private final VenueAccessService venueAccessService;
 
-    public HandoverController(HandoverService handoverService) {
+    public HandoverController(HandoverService handoverService, VenueAccessService venueAccessService) {
         this.handoverService = handoverService;
+        this.venueAccessService = venueAccessService;
     }
 
     /**
@@ -36,18 +40,38 @@ public class HandoverController {
             @Valid @RequestBody CreateHandoverRequest request,
             @AuthenticationPrincipal User user
     ) {
-        Handover handover = handoverService.createHandover(
-                shiftId, request.toShiftId(), user.getId(),
-                request.summary(), request.openIssues(), request.nextSteps()
-        );
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toHandoverResponse(handover)));
+        try {
+            Shift fromShift = venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+            Shift toShift = venueAccessService.getAccessibleShiftOrThrow(user, request.toShiftId());
+
+            if (!fromShift.getVenueId().equals(toShift.getVenueId())) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Handover shifts must be in the same venue"));
+            }
+
+            Handover handover = handoverService.createHandover(
+                    shiftId, request.toShiftId(), user.getId(),
+                    request.summary(), request.openIssues(), request.nextSteps()
+            );
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toHandoverResponse(handover)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     /**
      * GET /api/shifts/{shiftId}/handover - Get handover for shift
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<HandoverResponse>> getHandover(@PathVariable Long shiftId) {
+    public ResponseEntity<ApiResponse<HandoverResponse>> getHandover(
+            @PathVariable Long shiftId,
+            @AuthenticationPrincipal User user
+    ) {
+        try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+        }
+
         Handover handover = handoverService.getHandoverByShift(shiftId);
         if (handover == null) {
             return ResponseEntity.notFound().build();
@@ -59,7 +83,16 @@ public class HandoverController {
      * GET /api/shifts/{shiftId}/handover/incoming - Get incoming handover for shift
      */
     @GetMapping("/incoming")
-    public ResponseEntity<ApiResponse<HandoverResponse>> getIncomingHandover(@PathVariable Long shiftId) {
+    public ResponseEntity<ApiResponse<HandoverResponse>> getIncomingHandover(
+            @PathVariable Long shiftId,
+            @AuthenticationPrincipal User user
+    ) {
+        try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+        }
+
         Handover handover = handoverService.getIncomingHandover(shiftId);
         if (handover == null) {
             return ResponseEntity.notFound().build();
@@ -75,6 +108,12 @@ public class HandoverController {
             @PathVariable Long shiftId,
             @AuthenticationPrincipal User user
     ) {
+        try {
+            venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+        }
+
         Handover handover = handoverService.getIncomingHandover(shiftId);
         if (handover == null) {
             return ResponseEntity.notFound().build();

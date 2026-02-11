@@ -90,7 +90,8 @@ const venueTypes = [
 
 export default function SettingsPage() {
   const { user: currentUser } = useAuth();
-  const isPrivileged = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
+  const isOwner = currentUser?.role === "OWNER";
+  const canSeeAdminSections = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
   const { venues, selectedVenue, setSelectedVenue, refreshVenues } = useVenue();
 
   // Edit venue form state
@@ -134,10 +135,10 @@ export default function SettingsPage() {
 
   // Auto-open add modal if query param is set
   useEffect(() => {
-    if (searchParams.get("open") === "add-venue") {
+    if (isOwner && searchParams.get("open") === "add-venue") {
       setAddModalOpen(true);
     }
-  }, [searchParams]);
+  }, [isOwner, searchParams]);
 
   // Update form when venue changes
   const handleVenueSelect = (venue: typeof selectedVenue) => {
@@ -159,6 +160,10 @@ export default function SettingsPage() {
   };
 
   const handleSaveVenue = async () => {
+    if (!isOwner) {
+      toast.error("Only owners can update venues");
+      return;
+    }
     if (!selectedVenue) return;
     setIsSaving(true);
     try {
@@ -179,6 +184,10 @@ export default function SettingsPage() {
 
   const handleCreateVenue = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOwner) {
+      toast.error("Only owners can create venues");
+      return;
+    }
     if (!newVenueForm.name || !newVenueForm.address || !newVenueForm.city) {
       toast.error("Please fill in all required fields");
       return;
@@ -266,7 +275,7 @@ export default function SettingsPage() {
       </Card>
 
       {/* Venue Information — Editable (privileged only) */}
-      {isPrivileged && (
+      {isOwner && (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -403,7 +412,7 @@ export default function SettingsPage() {
       {/* All Settings */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {settingsSections
-          .filter((section) => isPrivileged || section.title === "Account")
+          .filter((section) => canSeeAdminSections || section.title === "Account")
           .map((section, i) => (
           <motion.div
             key={section.href}
@@ -432,7 +441,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Danger Zone (privileged only) */}
-      {isPrivileged && (
+      {isOwner && (
       <Card className="border-danger/30">
         <CardHeader>
           <CardTitle className="text-lg text-danger">Danger Zone</CardTitle>
@@ -453,6 +462,7 @@ export default function SettingsPage() {
       )}
 
       {/* Add Venue Modal */}
+      {isOwner && (
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -543,6 +553,7 @@ export default function SettingsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }

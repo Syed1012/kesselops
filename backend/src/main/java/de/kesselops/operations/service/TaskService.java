@@ -42,6 +42,14 @@ public class TaskService {
     }
 
     /**
+     * Get a task by ID.
+     */
+    public Task getTask(Long taskId) {
+        return taskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+    }
+
+    /**
      * Create a single task.
      */
     @Transactional
@@ -92,8 +100,7 @@ public class TaskService {
     @Transactional
     public Task updateTask(Long taskId, String title, String description, TaskPriority priority,
                            String category, boolean requiresPhoto, Long assigneeId, LocalDate dueDate) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+        Task task = getTask(taskId);
         task.setTitle(title);
         task.setDescription(description);
         task.setPriority(priority);
@@ -109,8 +116,7 @@ public class TaskService {
      */
     @Transactional
     public Task updateTaskStatus(Long taskId, KanbanTaskStatus newStatus) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+        Task task = getTask(taskId);
         task.setStatus(newStatus);
         return taskRepository.save(task);
     }
@@ -120,8 +126,7 @@ public class TaskService {
      */
     @Transactional
     public Task uploadPhoto(Long taskId, MultipartFile file, boolean markDone) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+        Task task = getTask(taskId);
         String url = minioService.uploadFile(file, "task-photos");
         task.setPhotoUrl(url);
         if (markDone) {
@@ -135,8 +140,7 @@ public class TaskService {
      */
     @Transactional
     public void deleteTask(Long taskId) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+        Task task = getTask(taskId);
         if (task.getPhotoUrl() != null) {
             minioService.deleteFile(task.getPhotoUrl());
         }

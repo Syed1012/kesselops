@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { getUsers, inviteUser, deleteUser, type User, type InviteResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useVenue } from "@/lib/venue-context";
 
 // Role badge config
 const roleConfig: Record<string, { color: string; label: string }> = {
@@ -37,6 +38,7 @@ const roleConfig: Record<string, { color: string; label: string }> = {
 
 export default function TeamPage() {
   const { user: currentUser } = useAuth();
+  const { selectedVenue } = useVenue();
   const isPrivileged = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
   const [staff, setStaff] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,15 +65,16 @@ export default function TeamPage() {
   // Use a ref to track if component is mounted to prevent state updates after unmount
   // const isMounted = useRef(true); // Removed unused variable
 
-  useEffect(() => {
-    loadTeam();
-    // return () => { isMounted.current = false; }; // Cleanup
-  }, []);
+  const loadTeam = useCallback(async () => {
+    if (!selectedVenue?.id) {
+      setStaff([]);
+      setIsLoading(false);
+      return;
+    }
 
-  const loadTeam = async () => {
     setIsLoading(true);
     try {
-      const response = await getUsers();
+      const response = await getUsers(selectedVenue.id);
       if (response.success && response.data) {
         setStaff(response.data);
       } else {
@@ -82,10 +85,19 @@ export default function TeamPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedVenue?.id]);
+
+  useEffect(() => {
+    loadTeam();
+    // return () => { isMounted.current = false; }; // Cleanup
+  }, [loadTeam]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedVenue?.id) {
+      toast.error("No venue selected");
+      return;
+    }
     setIsInviting(true);
     
     try {
@@ -93,6 +105,7 @@ export default function TeamPage() {
         firstName: inviteForm.firstName,
         lastName: inviteForm.lastName,
         role: inviteForm.role,
+        venueId: selectedVenue.id,
       });
 
       if (response.success && response.data) {

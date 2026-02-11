@@ -2,6 +2,7 @@ package de.kesselops.operations.service;
 
 import de.kesselops.operations.model.User;
 import de.kesselops.operations.repository.UserRepository;
+import de.kesselops.operations.repository.VenueRepository;
 import de.kesselops.shared.dto.*;
 import de.kesselops.shared.model.Role;
 import de.kesselops.shared.security.JwtUtils;
@@ -16,11 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final VenueRepository venueRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+    public AuthService(UserRepository userRepository,
+                       VenueRepository venueRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtUtils jwtUtils) {
         this.userRepository = userRepository;
+        this.venueRepository = venueRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
     }
@@ -116,6 +122,9 @@ public class AuthService {
         if (invitedBy.getRole() == Role.MANAGER && request.role() == Role.MANAGER) {
             throw new IllegalArgumentException("Managers cannot invite other Managers");
         }
+        if (!canInviteToVenue(invitedBy, request.venueId())) {
+            throw new IllegalArgumentException("Access denied to venue");
+        }
 
         // Get venue name for email generation
         String venueName = "venue";
@@ -123,7 +132,7 @@ public class AuthService {
         // Let's rely on a consistent format: firstInitial.lastName@venueId.kesselops.de for uniqueness
         // Or better: generate unique email with retry
         
-        String baseEmail = generateBaseEmail(request.firstName(), request.lastName(), invitedBy.getVenueId());
+        String baseEmail = generateBaseEmail(request.firstName(), request.lastName(), request.venueId());
         String finalEmail = baseEmail;
         int counter = 1;
         
@@ -140,7 +149,7 @@ public class AuthService {
         user.setEmail(finalEmail);
         user.setPassword(passwordEncoder.encode(password));
         user.setRole(request.role());
-        user.setVenueId(invitedBy.getVenueId());
+        user.setVenueId(request.venueId());
         user.setIsActive(true);
 
         User savedUser = userRepository.save(user);
@@ -158,6 +167,13 @@ public class AuthService {
         return String.format("%s.%s@kesselops.de", 
                 cleanFirst.isEmpty() ? "user" : cleanFirst.substring(0, 1), 
                 cleanLast.isEmpty() ? "user" : cleanLast);
+    }
+
+    private boolean canInviteToVenue(User invitedBy, Long venueId) {
+        if (invitedBy.getRole() == Role.OWNER) {
+            return venueRepository.existsByIdAndOwnerId(venueId, invitedBy.getId());
+        }
+        return invitedBy.getVenueId() != null && invitedBy.getVenueId().equals(venueId);
     }
 
     private String generateRandomPassword() {

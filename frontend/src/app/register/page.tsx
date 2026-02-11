@@ -8,11 +8,13 @@ import { Eye, EyeOff, Building2, ArrowRight, Check, Loader2 } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { register, login, createVenue, storeTokens } from "@/lib/api";
+import { register, createVenue } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { login, refreshUser } = useAuth();
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,14 +65,12 @@ export default function RegisterPage() {
         
         // Step 2: Login to get tokens
         const loginRes = await login(formData.email, formData.password);
-        if (!loginRes.success || !loginRes.data) {
+        if (!loginRes.success) {
           toast.error("Registration successful but login failed. Please login manually.");
           router.push("/login");
           return;
         }
-        
-        storeTokens(loginRes.data.accessToken, loginRes.data.refreshToken);
-        
+
         // Step 3: Create venue
         const venueRes = await createVenue({
           name: formData.venueName,
@@ -82,6 +82,7 @@ export default function RegisterPage() {
         if (!venueRes.success) {
           toast.warning("Account created but venue creation failed. You can create a venue later.");
         } else {
+          await refreshUser();
           toast.success("Welcome to KesselOps!");
         }
         

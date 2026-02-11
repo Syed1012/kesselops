@@ -87,6 +87,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse<InviteResponse>> inviteUser(
             @Valid @RequestBody InviteRequest request,
             @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(new ApiResponse<>(true, authService.inviteUser(request, user), null));
+        try {
+            return ResponseEntity.ok(new ApiResponse<>(true, authService.inviteUser(request, user), null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 }

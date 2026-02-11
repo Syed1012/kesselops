@@ -61,25 +61,39 @@ public class VenueService {
                         .map(List::of)
                         .orElse(List.of());
             }
-            // Fallback: return all venues (organization has no strict multi-tenancy yet)
-            return venueRepository.findAll();
+            return List.of();
         }
     }
 
     /**
      * Get a venue by ID.
      */
-    public Venue getVenue(Long id) {
-        return venueRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Venue not found"));
+    public Venue getVenue(Long id, User currentUser) {
+        if (currentUser.getRole() == Role.OWNER) {
+            return venueRepository.findByIdAndOwnerId(id, currentUser.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Venue not found"));
+        }
+
+        if (currentUser.getVenueId() != null && currentUser.getVenueId().equals(id)) {
+            return venueRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Venue not found"));
+        }
+
+        throw new IllegalArgumentException("Access denied to venue");
     }
 
     /**
      * Update venue details.
      */
     @Transactional
-    public Venue updateVenue(Long id, CreateVenueRequest request) {
-        Venue venue = getVenue(id);
+    public Venue updateVenue(Long id, CreateVenueRequest request, User currentUser) {
+        if (currentUser.getRole() != Role.OWNER) {
+            throw new IllegalArgumentException("Only Owners can update venues");
+        }
+
+        Venue venue = venueRepository.findByIdAndOwnerId(id, currentUser.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Venue not found"));
+
         venue.setName(request.name());
         venue.setAddress(request.address());
         venue.setCity(request.city());

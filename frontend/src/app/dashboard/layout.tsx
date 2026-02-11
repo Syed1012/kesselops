@@ -44,8 +44,6 @@ const allSidebarItems = [
   { icon: Settings, label: "Settings", href: "/dashboard/settings", allowedRoles: "all" as const },
 ];
 
-const privilegedRoles = ["OWNER", "MANAGER", "CHEF"];
-
 function getSidebarItems(role: string) {
   // Filter items based on role
   return allSidebarItems.filter((item) => {
@@ -229,8 +227,8 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
           </AnimatePresence>
         </div>
 
-        {/* Add Venue Button (Desktop) - Only for privileged roles */}
-        {privilegedRoles.includes(user?.role || "") && (
+        {/* Add Venue Button (Desktop) - Only for owners */}
+        {user?.role === "OWNER" && (
           <div className="relative group">
             <Link href="/dashboard/settings?open=add-venue">
               <button

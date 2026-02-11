@@ -29,25 +29,33 @@ public class UserController {
      * GET /api/users - List all users (filtered by role permissions)
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER', 'CHEF', 'STAFF', 'TRAINEE')")
     public ResponseEntity<ApiResponse<List<UserSummaryResponse>>> listUsers(
             @AuthenticationPrincipal User currentUser,
             @RequestParam(required = false) Long venueId
     ) {
-        List<UserSummaryResponse> users = userService.listUsers(currentUser, venueId);
-        return ResponseEntity.ok(ApiResponse.success(users));
+        try {
+            List<UserSummaryResponse> users = userService.listUsers(currentUser, venueId);
+            return ResponseEntity.ok(ApiResponse.success(users));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     /**
      * GET /api/users/{id} - Get a single user
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserSummaryResponse>> getUser(@PathVariable Long id) {
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<ApiResponse<UserSummaryResponse>> getUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser
+    ) {
         try {
-            UserSummaryResponse user = userService.getUser(id);
+            UserSummaryResponse user = userService.getUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(user));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
@@ -55,17 +63,19 @@ public class UserController {
      * PUT /api/users/{id} - Update user details
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<UserSummaryResponse>> updateUser(
             @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser,
             @RequestBody UpdateUserRequest request
     ) {
         try {
             UserSummaryResponse user = userService.updateUser(
-                    id, request.firstName(), request.lastName(), request.phone(), request.role()
+                    id, request.firstName(), request.lastName(), request.phone(), request.role(), currentUser
             );
             return ResponseEntity.ok(ApiResponse.success(user));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
@@ -74,12 +84,15 @@ public class UserController {
      */
     @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
-    public ResponseEntity<ApiResponse<Void>> deactivateUser(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deactivateUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser
+    ) {
         try {
-            userService.deactivateUser(id);
+            userService.deactivateUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
@@ -88,12 +101,15 @@ public class UserController {
      */
     @PatchMapping("/{id}/activate")
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
-    public ResponseEntity<ApiResponse<Void>> activateUser(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> activateUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser
+    ) {
         try {
-            userService.activateUser(id);
+            userService.activateUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 

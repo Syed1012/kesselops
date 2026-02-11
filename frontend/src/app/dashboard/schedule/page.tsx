@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Sparkles,
   Clock,
   Users,
   Calendar,
@@ -46,6 +45,7 @@ import {
   type Shift,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useVenue } from "@/lib/venue-context";
 
 // Timeline hours: 9 AM to 11 PM
 const timelineHours = Array.from({ length: 15 }, (_, i) => {
@@ -86,6 +86,7 @@ const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function SchedulePage() {
   const { user: currentUser } = useAuth();
+  const { selectedVenue } = useVenue();
   const isPrivileged = ["OWNER", "MANAGER", "CHEF"].includes(currentUser?.role || "");
   const [currentWeek, setCurrentWeek] = useState(0);
   const [staff, setStaff] = useState<User[]>([]);
@@ -130,19 +131,26 @@ export default function SchedulePage() {
     });
   }, [currentWeek]);
 
-  const weekDates = getWeekDates();
+  const weekDates = useMemo(() => getWeekDates(), [getWeekDates]);
 
   const loadData = useCallback(async () => {
+    if (!selectedVenue?.id) {
+      setStaff([]);
+      setShifts([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const staffRes = await getUsers();
+      const staffRes = await getUsers(selectedVenue.id);
       if (staffRes.success && staffRes.data) {
-        setStaff(staffRes.data.filter((u) => u.role !== "OWNER"));
+        setStaff(staffRes.data);
       }
 
       const from = weekDates[0].dateObj.toISOString();
       const to = new Date(weekDates[6].dateObj.getTime() + 24 * 60 * 60 * 1000).toISOString();
-      const shiftsRes = await getShifts(1, from, to);
+      const shiftsRes = await getShifts(selectedVenue.id, from, to);
       if (shiftsRes.success && shiftsRes.data) {
         setShifts(shiftsRes.data.content || []);
       }
@@ -151,11 +159,11 @@ export default function SchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [weekDates]);
+  }, [selectedVenue?.id, weekDates]);
 
   useEffect(() => {
     loadData();
-  }, [currentWeek]);
+  }, [loadData]);
 
   // Get shift position on timeline for a given day column
   const getShiftPosition = (shift: Shift) => {
@@ -184,6 +192,10 @@ export default function SchedulePage() {
 
   const handleSubmitShift = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedVenue?.id) {
+      toast.error("No venue selected");
+      return;
+    }
     if (!editingShiftId && !shiftForm.userId) {
       toast.error("Please select a staff member");
       return;
@@ -224,7 +236,7 @@ export default function SchedulePage() {
       } else {
         // Create new shift
         const response = await createShift({
-          venueId: 1,
+          venueId: selectedVenue.id,
           userId: parseInt(shiftForm.userId),
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
@@ -327,10 +339,6 @@ export default function SchedulePage() {
         </div>
         {isPrivileged && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              Auto-Schedule AI
-            </Button>
             <Button className="gap-2" onClick={() => openCreateModal()}>
               <Plus className="h-4 w-4" />
               Create Shift
@@ -458,7 +466,11 @@ export default function SchedulePage() {
                       className={`relative border-r last:border-r-0 border-border ${
                         d.isToday ? "bg-primary/5" : ""
                       }`}
-                      onClick={() => openCreateModal(d.fullDate)}
+                      onClick={() => {
+                        if (isPrivileged) {
+                          openCreateModal(d.fullDate);
+                        }
+                      }}
                     >
                       {/* Hour grid lines */}
                       {timelineHours.map((_, i) => (
@@ -622,10 +634,12 @@ export default function SchedulePage() {
                                     {startTime} – {endTime}
                                   </p>
                                 </div>
-                                <div className="hidden group-hover:flex items-center gap-1 text-red-400 text-[10px]">
-                                  <Trash2 className="h-3 w-3" />
-                                  Delete
-                                </div>
+                                {isPrivileged && (
+                                  <div className="hidden group-hover:flex items-center gap-1 text-red-400 text-[10px]">
+                                    <Trash2 className="h-3 w-3" />
+                                    Delete
+                                  </div>
+                                )}
                               </div>
                             </motion.div>
                           );

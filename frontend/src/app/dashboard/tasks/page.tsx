@@ -157,16 +157,21 @@ export default function TasksPage() {
   }, [venueId]);
 
   useEffect(() => {
+    if (!venueId) {
+      setStaff([]);
+      return;
+    }
+
     loadAllTasks();
     (async () => {
       try {
-        const res = await getUsers();
+        const res = await getUsers(venueId);
         if (res.success && res.data) setStaff(res.data);
       } catch {
         /* ignore */
       }
     })();
-  }, [loadAllTasks]);
+  }, [loadAllTasks, venueId]);
 
   // ─── Handlers ─────────────────────────────────────────
   const handleCreateTask = async () => {
