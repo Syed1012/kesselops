@@ -1,31 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
   Trophy,
-  BookOpen
+  BookOpen,
+  Briefcase,
+  ChevronDown
 } from "lucide-react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { trainingModules, recipes } from "@/lib/mock-data";
 
 export default function LearnPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<"STAFF" | "CHEF" | "MANAGER">("STAFF");
 
-  // Calculate overall progress
+  // Calculate overall progress based on ALL modules (or could be scoped to role)
   const totalLessons = trainingModules.reduce((sum, m) => sum + m.totalLessons, 0);
   const completedLessons = trainingModules.reduce((sum, m) => sum + m.completedLessons, 0);
   const overallProgress = (completedLessons / totalLessons) * 100;
 
+  // Filter modules based on selected role
+  const filteredModules = useMemo(() => {
+    return trainingModules.filter(module => 
+      module.roles.includes(selectedRole)
+    );
+  }, [selectedRole]);
+
+  const roleLabels = {
+    "STAFF": "Waitstaff / Service",
+    "CHEF": "Kitchen / Chef",
+    "MANAGER": "Management"
+  };
+
   return (
     <div className="space-y-6 relative pb-20">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Learning Center</h1>
-        <p className="text-muted-foreground">Master your skills with AI-powered guidance</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Learning Center</h1>
+          <p className="text-muted-foreground">Master your skills with AI-powered guidance</p>
+        </div>
+
+        {/* Role Selector Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                {roleLabels[selectedRole]}
+              </span>
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[200px]">
+            <DropdownMenuItem onClick={() => setSelectedRole("STAFF")}>
+              Waitstaff / Service
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSelectedRole("CHEF")}>
+              Kitchen / Chef
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSelectedRole("MANAGER")}>
+              Management
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Progress Overview */}
@@ -66,52 +115,66 @@ export default function LearnPage() {
                 {/* Training Modules */}
                 <div>
                     <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                        <BookOpen className="h-5 w-5 text-primary" /> Training Modules
+                        <BookOpen className="h-5 w-5 text-primary" /> 
+                        Training Modules ({filteredModules.length})
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {trainingModules.map((module, i) => (
-                        <motion.div
-                        key={module.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        >
-                        <Card className="h-full hover:border-primary/30 transition-colors cursor-pointer group">
-                            <CardContent className="pt-6">
-                            <div className="flex items-start gap-4">
-                                <div className="text-4xl">{module.badge}</div>
-                                <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-semibold text-foreground">{module.title}</h3>
-                                    {module.progress === 100 && (
-                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                    )}
-                                </div>
-                                <p className="text-sm text-muted-foreground mb-3">
-                                    {module.completedLessons}/{module.totalLessons} lessons
-                                </p>
-                                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                    <motion.div
-                                    className={`h-full ${
-                                        module.progress === 100
-                                        ? "bg-green-500"
-                                        : "bg-gradient-to-r from-orange-500 to-yellow-500"
-                                    }`}
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${module.progress}%` }}
-                                    transition={{ delay: i * 0.1 + 0.5 }}
-                                    />
-                                </div>
-                                </div>
-                            </div>
-                            </CardContent>
-                        </Card>
-                        </motion.div>
-                    ))}
-                    </div>
+                    
+                    {filteredModules.length === 0 ? (
+                        <div className="text-center py-10 border rounded-lg bg-muted/20">
+                            <p className="text-muted-foreground">No training modules available for this role yet.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filteredModules.map((module, i) => (
+                            <Link href={`/dashboard/learn/${module.id}`} key={module.id}>
+                                <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                >
+                                <Card className="h-full hover:border-primary/50 transition-all cursor-pointer group hover:shadow-lg hover:shadow-primary/5">
+                                    <CardContent className="pt-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="text-4xl group-hover:scale-110 transition-transform duration-300">{module.badge}</div>
+                                        <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{module.title}</h3>
+                                            {module.progress === 100 && (
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                            {/* @ts-ignore - description exists in new data */}
+                                            {module.description || `${module.completedLessons}/${module.totalLessons} lessons`}
+                                        </p>
+                                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                                            <span>{module.completedLessons}/{module.totalLessons} lessons</span>
+                                            <span>{module.progress}%</span>
+                                        </div>
+                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                            <motion.div
+                                            className={`h-full ${
+                                                module.progress === 100
+                                                ? "bg-green-500"
+                                                : "bg-gradient-to-r from-orange-500 to-yellow-500"
+                                            }`}
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${module.progress}%` }}
+                                            transition={{ delay: i * 0.1 + 0.5 }}
+                                            />
+                                        </div>
+                                        </div>
+                                    </div>
+                                    </CardContent>
+                                </Card>
+                                </motion.div>
+                            </Link>
+                        ))}
+                        </div>
+                    )}
                 </div>
 
-                {/* Recipe Cards */}
+                {/* Recipe Cards - Only show for relevant roles if needed, kept for now */}
                 <div>
                     <h2 className="font-semibold text-foreground mb-4">Recipe Cards</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -176,3 +239,4 @@ export default function LearnPage() {
     </div>
   );
 }
+
