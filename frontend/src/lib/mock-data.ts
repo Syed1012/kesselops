@@ -124,7 +124,20 @@ export const handover = {
   },
 };
 
-export const trainingModules = [
+const lessonVideoLibrary = [
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+];
+
+const baseTrainingModules = [
   // WAITER / STAFF MODULES
   { 
     id: "service-101", 
@@ -136,10 +149,10 @@ export const trainingModules = [
     completedLessons: 0, 
     badge: "🤵",
     chapters: [
-      { id: "s1", title: "The Art of Greeting", duration: "10:00", completed: false },
-      { id: "s2", title: "Table Setting Standards", duration: "15:00", completed: false },
-      { id: "s3", title: "Taking Orders Efficiency", duration: "12:00", completed: false },
-      { id: "s4", title: "Upselling Techniques", duration: "08:00", completed: false },
+      { id: "s1", title: "The Art of Greeting", duration: "10:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=M3QAjN8ZqIM" }, // Hospitality training
+      { id: "s2", title: "Table Setting Standards", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=KoJk6j1vYl0" }, // Table setting
+      { id: "s3", title: "Taking Orders Efficiency", duration: "12:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=-14h9d58O3E" }, // Taking orders
+      { id: "s4", title: "Upselling Techniques", duration: "08:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=O9z6s5b1e6Q" }, // Upselling
     ]
   },
   { 
@@ -152,10 +165,10 @@ export const trainingModules = [
     completedLessons: 0, 
     badge: "🖥️",
     chapters: [
-      { id: "p1", title: "System Overview", duration: "05:00", completed: false },
-      { id: "p2", title: "Entering Complex Orders", duration: "10:00", completed: false },
-      { id: "p3", title: "Splitting Bills", duration: "08:00", completed: false },
-      { id: "p4", title: "Voiding & Refunds", duration: "07:00", completed: false },
+      { id: "p1", title: "System Overview", duration: "05:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=X1d-p1z1z1c" }, // Generic POS
+      { id: "p2", title: "Entering Complex Orders", duration: "10:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=2y4y4y4y4y4" }, 
+      { id: "p3", title: "Splitting Bills", duration: "08:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=3z5z5z5z5z5" },
+      { id: "p4", title: "Voiding & Refunds", duration: "07:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=4a6a6a6a6a6" },
     ]
   },
   { 
@@ -168,9 +181,9 @@ export const trainingModules = [
     completedLessons: 0, 
     badge: "💳",
     chapters: [
-      { id: "pay1", title: "Card Terminal Operation", duration: "06:00", completed: false },
-      { id: "pay2", title: "Cash Handling & Change", duration: "09:00", completed: false },
-      { id: "pay3", title: "Digital Wallets", duration: "05:00", completed: false },
+      { id: "pay1", title: "Card Terminal Operation", duration: "06:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=5b7b7b7b7b7" },
+      { id: "pay2", title: "Cash Handling & Change", duration: "09:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=6c8c8c8c8c8" },
+      { id: "pay3", title: "Digital Wallets", duration: "05:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=7d9d9d9d9d9" },
     ]
   },
 
@@ -180,15 +193,15 @@ export const trainingModules = [
     title: "HACCP & Hygiene", 
     roles: ["STAFF", "CHEF", "MANAGER", "TRAINEE"],
     description: "Essential food safety standards and hygiene protocols for all staff.",
-    progress: 100, 
+    progress: 0, 
     totalLessons: 5, 
-    completedLessons: 5, 
+    completedLessons: 0, 
     badge: "✅",
     chapters: [
-      { id: "h1", title: "Personal Hygiene", duration: "08:00", completed: true },
-      { id: "h2", title: "Cross-Contamination", duration: "12:00", completed: true },
-      { id: "h3", title: "Temperature Control", duration: "10:00", completed: true },
-      { id: "h4", title: "Cleaning Schedules", duration: "15:00", completed: true },
+      { id: "h1", title: "Personal Hygiene", duration: "08:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=8e0e0e0e0e0" },
+      { id: "h2", title: "Cross-Contamination", duration: "12:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=9f1f1f1f1f1" },
+      { id: "h3", title: "Temperature Control", duration: "10:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=0g2g2g2g2g2" },
+      { id: "h4", title: "Cleaning Schedules", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=1h3h3h3h3h3" },
     ]
   },
   { 
@@ -201,25 +214,25 @@ export const trainingModules = [
     completedLessons: 0, 
     badge: "🔧",
     chapters: [
-      { id: "k1", title: "Knife Sharpening", duration: "15:00", completed: false },
-      { id: "k2", title: "Oven Cleaning", duration: "20:00", completed: false },
-      { id: "k3", title: "Fridge Organization", duration: "10:00", completed: false },
+      { id: "k1", title: "Knife Sharpening", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=2i4i4i4i4i4" },
+      { id: "k2", title: "Oven Cleaning", duration: "20:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=3j5j5j5j5j5" },
+      { id: "k3", title: "Fridge Organization", duration: "10:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=4k6k6k6k6k6" },
     ]
   },
   { 
     id: "cocktail-funds", 
     title: "Cocktail Fundamentals", 
-    roles: ["CHEF", "STAFF", "TRAINEE"], // Assuming chefs might need bar knowledge too, or bar staff
+    roles: ["CHEF", "STAFF", "TRAINEE"], 
     description: "Understanding spirits, mixers, and classic cocktail techniques.",
-    progress: 40, 
+    progress: 0, 
     totalLessons: 12, 
-    completedLessons: 5, 
+    completedLessons: 0, 
     badge: "🍸",
     chapters: [
-      { id: "c1", title: "Spirit Categories", duration: "15:00", completed: true },
-      { id: "c2", title: "Pouring Techniques", duration: "10:00", completed: true },
-      { id: "c3", title: "Shaking vs Stirring", duration: "08:00", completed: true },
-      { id: "c4", title: "Garnishing 101", duration: "12:00", completed: false },
+      { id: "c1", title: "Spirit Categories", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=5l7l7l7l7l7" },
+      { id: "c2", title: "Pouring Techniques", duration: "10:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=6m8m8m8m8m8" },
+      { id: "c3", title: "Shaking vs Stirring", duration: "08:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=7n9n9n9n9n9" },
+      { id: "c4", title: "Garnishing 101", duration: "12:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=8o0o0o0o0o0" },
     ]
   },
 
@@ -234,9 +247,9 @@ export const trainingModules = [
     completedLessons: 0, 
     badge: "📊",
     chapters: [
-      { id: "f1", title: "Reading a P&L", duration: "20:00", completed: false },
-      { id: "f2", title: "Daily Sales Reports", duration: "15:00", completed: false },
-      { id: "f3", title: "Cost of Goods Sold (COGS)", duration: "25:00", completed: false },
+      { id: "f1", title: "Reading a P&L", duration: "20:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=9p1p1p1p1p1" },
+      { id: "f2", title: "Daily Sales Reports", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=0q2q2q2q2q2" },
+      { id: "f3", title: "Cost of Goods Sold (COGS)", duration: "25:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=1r3r3r3r3r3" },
     ]
   },
   { 
@@ -244,14 +257,14 @@ export const trainingModules = [
     title: "Leadership & Scheduling", 
     roles: ["MANAGER", "OWNER"],
     description: "Effective team management, conflict resolution, and rota planning.",
-    progress: 20, 
+    progress: 0, 
     totalLessons: 8, 
-    completedLessons: 2, 
+    completedLessons: 0, 
     badge: "👥",
     chapters: [
-      { id: "l1", title: "Effective Communication", duration: "15:00", completed: true },
-      { id: "l2", title: "Conflict Resolution", duration: "20:00", completed: true },
-      { id: "l3", title: "Optimizing Schedules", duration: "30:00", completed: false },
+      { id: "l1", title: "Effective Communication", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=2s4s4s4s4s4" },
+      { id: "l2", title: "Conflict Resolution", duration: "20:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=3t5t5t5t5t5" },
+      { id: "l3", title: "Optimizing Schedules", duration: "30:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=4u6u6u6u6u6" },
     ]
   },
   { 
@@ -264,17 +277,35 @@ export const trainingModules = [
     completedLessons: 0, 
     badge: "📦",
     chapters: [
-      { id: "i1", title: "Weekly Stock Takes", duration: "15:00", completed: false },
-      { id: "i2", title: "Supplier Management", duration: "10:00", completed: false },
-      { id: "i3", title: "Waste Tracking", duration: "12:00", completed: false },
+      { id: "i1", title: "Weekly Stock Takes", duration: "15:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=5v7v7v7v7v7" },
+      { id: "i2", title: "Supplier Management", duration: "10:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=6w8w8w8w8w8" },
+      { id: "i3", title: "Waste Tracking", duration: "12:00", completed: false, videoUrl: "https://www.youtube.com/watch?v=7x9x9x9x9x9" },
     ]
   },
 ];
 
+let lessonVideoIndex = 0;
+
+export const trainingModules = baseTrainingModules.map((module) => ({
+  ...module,
+  chapters: (module.chapters || []).map((chapter) => {
+    const videoUrl = lessonVideoLibrary[lessonVideoIndex % lessonVideoLibrary.length];
+    lessonVideoIndex += 1;
+    return {
+      ...chapter,
+      videoUrl,
+    };
+  }),
+}));
+
 export const recipes = [
+  // COCKTAILS
   {
     id: "1",
     name: "Mojito",
+    category: "Cocktail",
+    isSignature: true,
+    difficulty: "Medium",
     glass: "Highball",
     method: "Muddle & Build",
     garnish: "Mint sprig, Lime wheel",
@@ -290,6 +321,9 @@ export const recipes = [
   {
     id: "2",
     name: "Basil Smash",
+    category: "Cocktail",
+    isSignature: true,
+    difficulty: "Medium",
     glass: "Rocks",
     method: "Shake",
     garnish: "Basil leaf",
@@ -300,5 +334,178 @@ export const recipes = [
       { name: "Fresh Basil", amount: "6-8 leaves" },
     ],
     instructions: "Muddle basil with syrup. Add remaining ingredients. Shake hard with ice. Double strain into rocks glass over ice.",
+  },
+  {
+    id: "3",
+    name: "Old Fashioned",
+    category: "Cocktail",
+    isSignature: false,
+    difficulty: "Hard",
+    glass: "Rocks",
+    method: "Stir",
+    garnish: "Orange zest",
+    ingredients: [
+      { name: "Bourbon", amount: "60ml" },
+      { name: "Sugar Cube", amount: "1" },
+      { name: "Angostura Bitters", amount: "3 dashes" },
+      { name: "Water", amount: "Splash" },
+    ],
+    instructions: "Soak sugar cube with bitters and water in glass. Muddle. Add ice and whiskey. Stir for 20-30 seconds. Garnish with orange zest.",
+  },
+  {
+    id: "4",
+    name: "Margarita",
+    category: "Cocktail",
+    isSignature: false,
+    difficulty: "Medium",
+    glass: "Coupe",
+    method: "Shake",
+    garnish: "Salt rim, Lime wheel",
+    ingredients: [
+      { name: "Tequila Blanco", amount: "50ml" },
+      { name: "Cointreau", amount: "25ml" },
+      { name: "Fresh Lime Juice", amount: "25ml" },
+      { name: "Sugar Syrup", amount: "5ml (optional)" },
+    ],
+    instructions: "Rim glass with salt. Add all ingredients to shaker with ice. Shake hard. Strain into glass.",
+  },
+  {
+    id: "5",
+    name: "Espresso Martini",
+    category: "Cocktail",
+    isSignature: true,
+    difficulty: "Medium",
+    glass: "Coupe",
+    method: "Shake",
+    garnish: "3 Coffee beans",
+    ingredients: [
+      { name: "Vodka", amount: "50ml" },
+      { name: "Coffee Liqueur", amount: "20ml" },
+      { name: "Fresh Espresso", amount: "30ml" },
+      { name: "Sugar Syrup", amount: "10ml" },
+    ],
+    instructions: "Add all ingredients to shaker with ice. Shake very hard to create foam. Double strain into chilled glass.",
+  },
+  {
+    id: "6",
+    name: "Negroni",
+    category: "Cocktail",
+    isSignature: false,
+    difficulty: "Easy",
+    glass: "Rocks",
+    method: "Stir",
+    garnish: "Orange slice",
+    ingredients: [
+      { name: "Gin", amount: "30ml" },
+      { name: "Campari", amount: "30ml" },
+      { name: "Sweet Vermouth", amount: "30ml" },
+    ],
+    instructions: "Add all ingredients to glass with ice. Stir until chilled. Garnish with orange slice.",
+  },
+  {
+    id: "7",
+    name: "Whiskey Sour",
+    category: "Cocktail",
+    isSignature: false,
+    difficulty: "Medium",
+    glass: "Rocks/Coupe",
+    method: "Shake (Dry + Wet)",
+    garnish: "Lemon peel, cherry",
+    ingredients: [
+      { name: "Bourbon", amount: "50ml" },
+      { name: "Fresh Lemon Juice", amount: "25ml" },
+      { name: "Sugar Syrup", amount: "15ml" },
+      { name: "Egg White", amount: "1/2 (optional)" },
+    ],
+    instructions: "Add all ingredients to shaker. Dry shake (no ice) if using egg white. Add ice, shake hard. Strain into glass.",
+  },
+  {
+    id: "8",
+    name: "Cosmopolitan",
+    category: "Cocktail",
+    isSignature: false,
+    difficulty: "Medium",
+    glass: "Coupe",
+    method: "Shake",
+    garnish: "Flamed orange zest",
+    ingredients: [
+      { name: "Citron Vodka", amount: "40ml" },
+      { name: "Cointreau", amount: "15ml" },
+      { name: "Fresh Lime Juice", amount: "15ml" },
+      { name: "Cranberry Juice", amount: "30ml" },
+    ],
+    instructions: "Add all ingredients to shaker with ice. Shake until chilled. Strain into chilled glass.",
+  },
+
+  // FOOD
+  {
+    id: "f1",
+    name: "Truffle Parmesan Fries",
+    category: "Food",
+    isSignature: true,
+    difficulty: "Easy",
+    glass: "Bowl",
+    method: "Fry & Toss",
+    garnish: "Fresh parsley",
+    ingredients: [
+      { name: "French Fries", amount: "200g" },
+      { name: "Truffle Oil", amount: "1 tbsp" },
+      { name: "Parmesan Cheese", amount: "20g (grated)" },
+      { name: "Sea Salt", amount: "Pinch" },
+    ],
+    instructions: "Fry fries until golden. Toss immediately in bowl with truffle oil and salt. Top generously with parmesan and parsley.",
+  },
+  {
+    id: "f2",
+    name: "Wagyu Smash Burger",
+    category: "Food",
+    isSignature: true,
+    difficulty: "Hard",
+    glass: "Plate",
+    method: "Grill",
+    garnish: "Pickle spear",
+    ingredients: [
+      { name: "Wagyu Beef Patty", amount: "150g" },
+      { name: "Brioche Bun", amount: "1" },
+      { name: "Caramelized Onions", amount: "1 tbsp" },
+      { name: "Gruyère Cheese", amount: "1 slice" },
+      { name: "Truffle Mayo", amount: "1 tbsp" },
+    ],
+    instructions: "Sear patty on high heat, smash down. Flip, add cheese, cover to melt. Toast bun. Assemble with mayo and onions.",
+  },
+  {
+    id: "f3",
+    name: "Miso Glazed Salmon",
+    category: "Food",
+    isSignature: false,
+    difficulty: "Medium",
+    glass: "Plate",
+    method: "Oven Roast",
+    garnish: "Sesame seeds, Scallions",
+    ingredients: [
+      { name: "Salmon Fillet", amount: "180g" },
+      { name: "Miso Paste", amount: "2 tbsp" },
+      { name: "Soy Sauce", amount: "1 tsp" },
+      { name: "Mirin", amount: "1 tbsp" },
+      { name: "Honey", amount: "1 tsp" },
+    ],
+    instructions: "Whisk marinade ingredients. Coat salmon and marinate for 30 mins. Roast at 200°C for 10-12 mins until flaky.",
+  },
+  {
+    id: "f4",
+    name: "Crispy Calamari",
+    category: "Food",
+    isSignature: false,
+    difficulty: "Medium",
+    glass: "Basket",
+    method: "Deep Fry",
+    garnish: "Lemon wedge",
+    ingredients: [
+      { name: "Squid Rings", amount: "150g" },
+      { name: "Flour Mix", amount: "50g" },
+      { name: "Paprika", amount: "1 tsp" },
+      { name: "Garlic Aioli", amount: "Side" },
+    ],
+    instructions: "Coat squid in seasoned flour. Fry in hot oil for 2-3 mins until golden. Drain on paper towel. Serve with aioli.",
   },
 ];

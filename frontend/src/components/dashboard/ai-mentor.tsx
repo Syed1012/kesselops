@@ -25,6 +25,21 @@ export function GlobalAIMentor() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Listen for global open events
+  useEffect(() => {
+    const handleOpenEvent = (e: CustomEvent<any>) => {
+      setIsOpen(true);
+      if (e.detail?.message) {
+        setInput(e.detail.message);
+      }
+    };
+
+    window.addEventListener('kesselops:open-ai-mentor' as any, handleOpenEvent as any);
+    return () => {
+      window.removeEventListener('kesselops:open-ai-mentor' as any, handleOpenEvent as any);
+    };
+  }, []);
+
   // Only render for TRAINEE role
   if (!user || user.role !== "TRAINEE") return null;
 

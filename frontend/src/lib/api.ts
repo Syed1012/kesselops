@@ -366,6 +366,8 @@ export interface Handover {
   createdAt: string;
 }
 
+export type LearningProgressMap = Record<string, string[]>;
+
 // ============================================
 // AUTH & AI TYPES
 // ============================================
@@ -1006,6 +1008,24 @@ export async function deactivateUser(id: number): Promise<ApiResponse<void>> {
 
 export async function deleteUser(id: number): Promise<ApiResponse<void>> {
   return fetchAuthApi<void>(`/users/${id}`, { method: 'DELETE' });
+}
+
+// ============================================
+// LEARNING PROGRESS API
+// ============================================
+
+export async function getLearningProgress(): Promise<ApiResponse<LearningProgressMap>> {
+  return fetchAuthApi<LearningProgressMap>('/learning/progress');
+}
+
+export async function updateLearningModuleProgress(
+  moduleId: string,
+  completedChapterIds: string[]
+): Promise<ApiResponse<string[]>> {
+  return fetchAuthApi<string[]>(`/learning/progress/${encodeURIComponent(moduleId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ completedChapterIds }),
+  });
 }
 
 // ============================================
