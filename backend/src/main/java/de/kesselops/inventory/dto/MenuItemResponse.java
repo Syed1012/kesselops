@@ -21,6 +21,7 @@ public class MenuItemResponse {
     private Long venueId;
     private boolean available;
     private boolean active;
+    private String imageUrl;
     private boolean hasRecipe;
     private Instant createdAt;
     private Instant updatedAt;
@@ -37,6 +38,7 @@ public class MenuItemResponse {
         response.venueId = entity.getVenueId();
         response.available = entity.isAvailable();
         response.active = entity.isActive();
+        response.imageUrl = entity.getImageUrl();
         response.hasRecipe = entity.getRecipe() != null;
         response.createdAt = entity.getCreatedAt();
         response.updatedAt = entity.getUpdatedAt();
@@ -122,6 +124,14 @@ public class MenuItemResponse {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public boolean isHasRecipe() {
