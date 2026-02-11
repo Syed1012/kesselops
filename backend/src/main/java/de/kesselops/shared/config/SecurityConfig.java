@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/tables/*/sessions/start", "/api/tables/*/active-status").permitAll()
                         .requestMatchers("/api/menu-items/available").permitAll()
                         .requestMatchers("/api/sessions/search").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/reservations").permitAll()
                         .requestMatchers("/api/sessions/*").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
                         .requestMatchers("/api/sessions/*/orders/**").permitAll()
