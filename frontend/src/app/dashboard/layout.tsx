@@ -28,7 +28,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { CartProvider } from "@/context/cart-context";
@@ -211,7 +210,7 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
       </div>
 
       {/* Venue Selector (Desktop) */}
-      <div className="hidden lg:flex items-center gap-2 relative">
+      <div className="hidden lg:flex items-center gap-1.5 relative">
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setVenueDropdownOpen(!venueDropdownOpen); }}
@@ -265,27 +264,20 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
 
         {/* Add Venue Button (Desktop) - Only for owners */}
         {user?.role === "OWNER" && (
-          <div className="relative group">
-            <Link href="/dashboard/settings?open=add-venue">
-              <button
-                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-primary border border-transparent hover:border-border"
-                title="Add new venue"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
+          <div className="flex items-center">
+            <Link
+              href="/dashboard/settings?open=add-venue"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              title="Add new venue"
+            >
+              <Plus className="h-4 w-4" />
             </Link>
-            {/* Custom Tooltip */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-md border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              Add new venue
-            </div>
           </div>
         )}
       </div>
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
-        <ThemeToggle />
-
         {/* Notifications */}
         <Popover open={notificationsOpen} onOpenChange={handleNotificationsOpen}>
           <PopoverTrigger asChild>
@@ -346,20 +338,6 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
             </div>
           </PopoverContent>
         </Popover>
-
-        {/* User (Desktop) */}
-        <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-border ml-2">
-          <Avatar>
-            <AvatarFallback>{user ? `${user.firstName[0]}${user.lastName[0]}` : "?"}</AvatarFallback>
-          </Avatar>
-          <div className="hidden xl:block">
-            <p className="text-sm font-medium text-foreground">{user?.firstName}</p>
-          </div>
-        </div>
-
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <LogOut className="h-5 w-5" />
-        </Button>
       </div>
     </header>
   );

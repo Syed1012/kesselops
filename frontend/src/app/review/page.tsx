@@ -1,103 +1,77 @@
 "use client";
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Star, QrCode } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { QrCode, Star } from "lucide-react";
+
+const DEFAULT_REVIEW_FORM_URL = "http://localhost:3000/review/submit";
 
 export default function ReviewPage() {
-    const router = useRouter();
+  const router = useRouter();
+  const [reviewFormUrl, setReviewFormUrl] = useState(DEFAULT_REVIEW_FORM_URL);
 
-    return (
-        <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6">
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-sm bg-white text-black rounded-3xl overflow-hidden shadow-2xl relative"
-            >
-                {/* Header Section - App Theme (Amber) */}
-                <div className="bg-amber-500 p-8 text-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-black/10" />
-                    <h1 className="relative z-10 text-2xl font-bold text-black leading-tight mb-2">
-                        Are you impressed<br />with our service?
-                    </h1>
-                </div>
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setReviewFormUrl(`${window.location.origin}/review/submit`);
+    }
+  }, []);
 
-                {/* Subhead Section */}
-                <div className="bg-amber-200 p-4 text-center">
-                    <p className="font-medium text-amber-900 text-sm">
-                        Make our day by leaving<br />us a 5 star review!
-                    </p>
-                </div>
+  const qrImageUrl = useMemo(() => {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(reviewFormUrl)}`;
+  }, [reviewFormUrl]);
 
-                {/* Content Body */}
-                <div className="p-8 flex flex-col items-center space-y-6 bg-white">
-                    {/* Google Logo Mock */}
-                    <div className="flex items-center gap-1 scale-110">
-                        <span className="text-4xl font-sans font-bold text-[#4285F4]">G</span>
-                        <span className="text-4xl font-sans font-bold text-[#EA4335]">o</span>
-                        <span className="text-4xl font-sans font-bold text-[#FBBC05]">o</span>
-                        <span className="text-4xl font-sans font-bold text-[#4285F4]">g</span>
-                        <span className="text-4xl font-sans font-bold text-[#34A853]">l</span>
-                        <span className="text-4xl font-sans font-bold text-[#EA4335]">e</span>
-                    </div>
+  return (
+    <main className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md bg-card border border-border rounded-3xl overflow-hidden shadow-2xl"
+      >
+        <div className="bg-amber-500 p-8 text-center text-black">
+          <h1 className="text-2xl font-bold leading-tight">
+            Scan to Leave
+            <br />
+            Your Review
+          </h1>
+          <p className="text-sm font-medium mt-2">
+            One QR for all venues in this MVP
+          </p>
+        </div>
 
-                    {/* 5 Stars */}
-                    <div className="flex gap-1 my-2">
-                        {[1, 2, 3, 4, 5].map(i => (
-                            <motion.div
-                                key={i}
-                                initial={{ scale: 0, rotate: -30 }}
-                                animate={{ scale: 1, rotate: 0 }}
-                                transition={{ delay: 0.2 + (i * 0.1) }}
-                            >
-                                <Star className="w-10 h-10 fill-amber-500 text-amber-500 drop-shadow-sm" />
-                            </motion.div>
-                        ))}
-                    </div>
+        <div className="p-8 bg-card flex flex-col items-center gap-6">
+          <div className="flex items-center gap-2 text-amber-400">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} className="h-5 w-5 fill-amber-400" />
+            ))}
+          </div>
 
-                    {/* QR Placeholder */}
-                    <div className="relative group cursor-pointer">
-                        <div className="w-48 h-48 border-4 border-black rounded-2xl flex items-center justify-center bg-white relative overflow-hidden">
-                            {/* Simulated QR Code Pattern */}
-                            <div className="absolute inset-0 p-4 grid grid-cols-4 gap-2 opacity-80">
-                                {[...Array(16)].map((_, i) => (
-                                    <div key={i} className={`bg-black rounded-sm ${Math.random() > 0.5 ? 'opacity-100' : 'opacity-0'}`} />
-                                ))}
-                            </div>
-                            {/* Corner Markers */}
-                            <div className="absolute top-3 left-3 w-8 h-8 border-4 border-black" />
-                            <div className="absolute top-3 right-3 w-8 h-8 border-4 border-black" />
-                            <div className="absolute bottom-3 left-3 w-8 h-8 border-4 border-black" />
+          <div className="rounded-2xl border border-border bg-white p-4 shadow-lg">
+            <img
+              src={qrImageUrl}
+              alt="Customer review QR code"
+              className="w-64 h-64 object-contain"
+            />
+          </div>
 
-                            <QrCode className="w-16 h-16 text-amber-600 relative z-10 bg-white p-1 rounded-lg shadow-sm" />
-                        </div>
+          <div className="text-center space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Scan this code and share your feedback
+            </p>
+            <p className="text-[11px] text-muted-foreground break-all max-w-xs">
+              {reviewFormUrl}
+            </p>
+          </div>
 
-                        {/* Scan Me Pill */}
-                        <motion.div
-                            animate={{ y: [0, -5, 0] }}
-                            transition={{ repeat: Infinity, duration: 2 }}
-                            className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-amber-500 text-black font-bold px-6 py-1.5 rounded-full shadow-lg whitespace-nowrap border-2 border-white text-sm"
-                        >
-                            Scan me!
-                        </motion.div>
-                    </div>
-
-                    <p className="text-xs text-gray-400 font-medium mt-4">Google Account Required</p>
-                </div>
-            </motion.div>
-
-            {/* Done Button */}
-            <motion.button
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-                onClick={() => router.push('/table/session')}
-                className="mt-12 px-12 py-4 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-full shadow-amber-900/40 shadow-xl hover:scale-105 transition-all uppercase tracking-widest text-sm flex items-center gap-2"
-            >
-                Done
-            </motion.button>
-
-        </main>
-    );
+          <button
+            onClick={() => router.push("/review/submit")}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-3 rounded-xl transition-colors inline-flex items-center justify-center gap-2"
+          >
+            <QrCode className="h-4 w-4" />
+            Open Review Form
+          </button>
+        </div>
+      </motion.div>
+    </main>
+  );
 }

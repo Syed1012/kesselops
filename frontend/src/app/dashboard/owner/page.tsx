@@ -35,8 +35,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { getReviewFeed, type ReviewFeed } from "@/lib/api";
 
 // ─── Mock Data & Types ─────────────────────────────────────────────────────
 
@@ -89,12 +90,15 @@ const LIVE_METRICS = [
   },
 ];
 
-const RECENT_REVIEWS = [
-  { id: 1, source: "Google", rating: 5, text: "Amazing cocktails and vibe!", author: "Sarah M.", time: "2h ago" },
-  { id: 2, source: "Yelp", rating: 4, text: "Great food, bit noisy.", author: "Mike T.", time: "5h ago" },
-  { id: 3, source: "OpenTable", rating: 5, text: "Best service in town.", author: "Jessica L.", time: "1d ago" },
-  { id: 4, source: "Google", rating: 2, text: "Wait time was too long.", author: "Tom H.", time: "2d ago" },
-];
+type DashboardReview = {
+  id: number;
+  source: string;
+  rating: number;
+  staffBehaviorRating: number;
+  text: string;
+  author: string;
+  time: string;
+};
 
 const ANALYTICS_DATA = {
   income: {
@@ -159,6 +163,23 @@ const getBarData = (filter: TimeFilter, type: string) => {
   // Returns dummy height percentages for bars
   const count = getXAxisLabels(filter).length;
   return Array.from({ length: count }, () => 20 + Math.random() * 70);
+};
+
+const formatRelativeTime = (timestamp: string) => {
+  const parsedTime = new Date(timestamp).getTime();
+  if (Number.isNaN(parsedTime)) return "just now";
+
+  const diffMs = Date.now() - parsedTime;
+  if (diffMs < 60_000) return "just now";
+
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 };
 
 // ─── Components ────────────────────────────────────────────────────────────
@@ -323,10 +344,51 @@ export default function OwnerDashboard() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
   const [activeTab, setActiveTab] = useState("income");
   const [selectedMetric, setSelectedMetric] = useState<any>(null);
+  const [reviewFeed, setReviewFeed] = useState<ReviewFeed | null>(null);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
 
   const currentData = ANALYTICS_DATA[activeTab as keyof typeof ANALYTICS_DATA];
   const xAxisLabels = getXAxisLabels(timeFilter);
   const barData = getBarData(timeFilter, activeTab);
+
+  useEffect(() => {
+    let isActive = true;
+
+    (async () => {
+      setIsLoadingReviews(true);
+      const response = await getReviewFeed(4);
+      if (isActive && response.success && response.data) {
+        setReviewFeed(response.data);
+      }
+      if (isActive) {
+        setIsLoadingReviews(false);
+      }
+    })();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const reviewItems = useMemo(() => {
+    if (!reviewFeed?.reviews?.length) {
+      return [] as DashboardReview[];
+    }
+
+    return reviewFeed.reviews.map((review) => ({
+      id: review.id,
+      source: review.source || "QR",
+      rating: review.rating,
+      staffBehaviorRating: review.staffBehaviorRating,
+      text: review.comment,
+      author: review.reviewerName || "Guest",
+      time: formatRelativeTime(review.createdAt),
+    }));
+  }, [reviewFeed]);
+
+  const averageRating = useMemo(() => {
+    return reviewFeed?.averageRating ?? 0;
+  }, [reviewFeed]);
 
   return (
     <div className="space-y-8">
@@ -526,12 +588,26 @@ export default function OwnerDashboard() {
                   <Star className="h-5 w-5 text-yellow-500" />
                   Recent Reviews
                 </CardTitle>
-                <Badge variant="outline" className="text-xs font-normal">4.8 Avg</Badge>
+                <Badge variant="outline" className="text-xs font-normal">
+                  {averageRating.toFixed(1)} Avg
+                </Badge>
               </div>
-              <CardDescription>Latest customer feedback.</CardDescription>
+              <CardDescription>
+                {reviewFeed?.totalReviews
+                  ? `${reviewFeed.totalReviews} total reviews from QR feedback`
+                  : "Latest customer feedback."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {RECENT_REVIEWS.map((review) => (
+              {isLoadingReviews && (
+                <p className="text-xs text-muted-foreground">Loading latest reviews...</p>
+              )}
+              {!isLoadingReviews && reviewItems.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No reviews submitted yet. Scan the QR and submit feedback to see entries here.
+                </p>
+              )}
+              {reviewItems.map((review) => (
                 <div key={review.id} className="border-b border-border last:border-0 pb-4 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1">
@@ -547,6 +623,9 @@ export default function OwnerDashboard() {
                   <p className="text-sm text-foreground italic line-clamp-2">"{review.text}"</p>
                   <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                     <span className="font-medium text-foreground">{review.author}</span> • {review.time}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Staff behavior: {review.staffBehaviorRating}/5
                   </p>
                 </div>
               ))}

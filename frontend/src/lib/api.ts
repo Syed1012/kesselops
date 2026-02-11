@@ -378,6 +378,23 @@ export interface TraineeLearningProgress {
   lastCompletedAt: string | null;
 }
 
+export interface CustomerReview {
+  id: number;
+  reviewerName: string;
+  rating: number;
+  staffBehaviorRating: number;
+  comment: string;
+  source: string;
+  createdAt: string;
+}
+
+export interface ReviewFeed {
+  averageRating: number;
+  averageStaffBehaviorRating: number;
+  totalReviews: number;
+  reviews: CustomerReview[];
+}
+
 // ============================================
 // AUTH & AI TYPES
 // ============================================
@@ -1021,6 +1038,26 @@ export async function deleteUser(id: number): Promise<ApiResponse<void>> {
 }
 
 // ============================================
+// REVIEW API
+// ============================================
+
+export async function submitPublicReview(data: {
+  reviewerName?: string;
+  rating: number;
+  staffBehaviorRating: number;
+  comment: string;
+}): Promise<ApiResponse<CustomerReview>> {
+  return fetchAuthApi<CustomerReview>('/reviews/public', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getReviewFeed(limit: number = 4): Promise<ApiResponse<ReviewFeed>> {
+  return fetchAuthApi<ReviewFeed>(`/reviews/recent?limit=${Math.max(1, limit)}`);
+}
+
+// ============================================
 // LEARNING PROGRESS API
 // ============================================
 
@@ -1319,6 +1356,10 @@ const api = {
       deactivate: deactivateUser,
       delete: deleteUser,
       invite: inviteUser
+    },
+    reviews: {
+      submitPublic: submitPublicReview,
+      feed: getReviewFeed
     },
     venues: {
       list: getVenues,

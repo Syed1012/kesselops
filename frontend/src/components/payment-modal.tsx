@@ -541,7 +541,7 @@ Total Paid:  €${totalPaid.toFixed(2)} (inc all tips)
                                         <Button onClick={() => handleDownload('PARTIAL')} className="flex-1 bg-slate-800">
                                             <Download className="h-4 w-4 mr-2" /> Receipt
                                         </Button>
-                                        <Button onClick={() => router.push('/review')} className="flex-1 bg-white text-black hover:bg-slate-200">
+                                        <Button onClick={() => router.push('/review/submit')} className="flex-1 bg-white text-black hover:bg-slate-200">
                                             Done
                                         </Button>
                                     </div>
