@@ -137,6 +137,19 @@ const lessonVideoLibrary = [
   "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
 ];
 
+type QuizQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+};
+
+type ModuleQuiz = {
+  title: string;
+  questions: QuizQuestion[];
+};
+
 const baseTrainingModules = [
   // WAITER / STAFF MODULES
   { 
@@ -284,18 +297,175 @@ const baseTrainingModules = [
   },
 ];
 
+const moduleQuizBank: Record<string, ModuleQuiz> = {
+  "service-101": {
+    title: "Service Excellence Final Quiz",
+    questions: [
+      { id: "q1", question: "What should happen within the first 30 seconds after guest seating?", options: ["Warm greeting and menu introduction", "Ask for payment method", "Offer dessert menu", "Begin clearing plates"], correctAnswer: 0, explanation: "Fast, warm acknowledgment sets service tone." },
+      { id: "q2", question: "What is the best body-language posture for table-side service?", options: ["Crossed arms to look confident", "Open stance and eye contact", "Looking at order pad only", "Standing behind the guest"], correctAnswer: 1, explanation: "Open posture and eye contact signal attentiveness." },
+      { id: "q3", question: "When confirming an order, what is most important?", options: ["Speak quickly to save time", "Repeat key items and modifiers", "Only repeat drink orders", "Avoid repeating to prevent annoyance"], correctAnswer: 1, explanation: "Repeating key items prevents costly mistakes." },
+      { id: "q4", question: "What is an effective upselling approach?", options: ["Push highest-priced item only", "Suggest relevant add-ons based on guest choice", "Upsell before greeting", "Avoid upselling during busy times"], correctAnswer: 1, explanation: "Contextual recommendations feel helpful, not pushy." },
+      { id: "q5", question: "If a guest complaint escalates, first step is to:", options: ["Defend team policy immediately", "Acknowledge and empathize", "Walk away and call manager silently", "Offer discount before listening"], correctAnswer: 1, explanation: "Acknowledgment lowers tension and builds trust." },
+      { id: "q6", question: "Which table setting check should happen before service starts?", options: ["Napkins and cutlery aligned to standard", "Only check water glasses", "Skip checks if table looks clean", "Wait for first guest to inspect"], correctAnswer: 0, explanation: "Consistent setup quality is a core service standard." },
+      { id: "q7", question: "Best practice when delivering food is to:", options: ["Announce only one dish name", "Place dishes without speaking", "Name each dish and confirm correct guest", "Ask guests to sort dishes themselves"], correctAnswer: 2, explanation: "Calling dishes avoids mix-ups and improves flow." },
+      { id: "q8", question: "During a rush, priority for a section is:", options: ["Longest-tenured guests only", "Random table visits", "Structured scan: greeting, drinks, orders, check-back", "Only VIP tables"], correctAnswer: 2, explanation: "A consistent scan prevents dropped service steps." },
+      { id: "q9", question: "What creates the strongest closing impression?", options: ["Silent bill drop", "Quick table reset", "Thanking by name and inviting return", "Upselling one last item"], correctAnswer: 2, explanation: "Personalized farewell increases loyalty." },
+      { id: "q10", question: "A service recovery is successful when:", options: ["Issue is logged only", "Guest leaves without speaking", "Guest confirms satisfaction after correction", "Manager sends internal note"], correctAnswer: 2, explanation: "Recovery is complete when guest experience is restored." },
+    ],
+  },
+  "pos-mastery": {
+    title: "POS Mastery Final Quiz",
+    questions: [
+      { id: "q1", question: "Why are item modifiers critical in POS entry?", options: ["They only affect kitchen printer font", "They capture preparation details accurately", "They increase tax automatically", "They disable split billing"], correctAnswer: 1, explanation: "Modifiers carry execution details to the kitchen/bar." },
+      { id: "q2", question: "Before sending an order, you should:", options: ["Close the table immediately", "Review quantity, modifiers, and seat mapping", "Apply refund", "Change venue profile"], correctAnswer: 1, explanation: "Final review prevents re-fire and voids." },
+      { id: "q3", question: "Best way to handle a wrong item entered:", options: ["Leave as is", "Void/correct according to policy with reason", "Delete without trace", "Create second duplicate item"], correctAnswer: 1, explanation: "Traceable corrections protect audit integrity." },
+      { id: "q4", question: "When splitting bills, priority is:", options: ["Round totals randomly", "Map items correctly to each guest", "Charge one guest then refund", "Disable discounts"], correctAnswer: 1, explanation: "Accurate allocation avoids disputes at payment." },
+      { id: "q5", question: "What should trigger manager approval in many POS setups?", options: ["Adding water", "Void/refund after send", "Printing kitchen chit", "Opening table"], correctAnswer: 1, explanation: "Post-send financial changes usually need authorization." },
+      { id: "q6", question: "If POS is slow/unresponsive, first action is:", options: ["Restart entire network immediately", "Check local connectivity and retry safely", "Continue blind entries", "Force-close without saving"], correctAnswer: 1, explanation: "Controlled troubleshooting reduces data loss." },
+      { id: "q7", question: "Seat numbers in POS mainly help:", options: ["Increase menu prices", "Track who ordered which item", "Disable handover", "Skip KOT printing"], correctAnswer: 1, explanation: "Seat mapping helps runners and billing accuracy." },
+      { id: "q8", question: "A discount should be applied:", options: ["After payment is finalized", "With correct reason/promo code before close", "Only by deleting items", "Never on combo orders"], correctAnswer: 1, explanation: "Proper tagging keeps reports accurate." },
+      { id: "q9", question: "What is the safest end-of-shift POS habit?", options: ["Share credentials for speed", "Log out and reconcile your transactions", "Leave terminal unlocked", "Skip cash-out"], correctAnswer: 1, explanation: "Individual accountability depends on secure sign-off." },
+      { id: "q10", question: "Why is real-time POS hygiene important?", options: ["Looks cleaner on screen", "Improves reporting and operational decisions", "Changes customer names", "Avoids table service"], correctAnswer: 1, explanation: "Clean data powers labor, stock, and sales decisions." },
+    ],
+  },
+  "payment-processing": {
+    title: "Payment Processing Final Quiz",
+    questions: [
+      { id: "q1", question: "Before processing card payment, confirm:", options: ["Guest social handle", "Amount and table/order reference", "Server shift color", "Kitchen section"], correctAnswer: 1, explanation: "Amount confirmation reduces disputes and chargebacks." },
+      { id: "q2", question: "PCI-safe behavior includes:", options: ["Writing full card number in notes", "Never storing card details in plain text", "Sharing CVV with kitchen", "Photographing guest card"], correctAnswer: 1, explanation: "Card data must be protected and minimally handled." },
+      { id: "q3", question: "If terminal declines card, first step is:", options: ["Announce loudly", "Retry once and offer alternate method politely", "Cancel order", "Force offline payment"], correctAnswer: 1, explanation: "Professional retry flow keeps checkout smooth." },
+      { id: "q4", question: "Cash handling best practice at register:", options: ["Keep drawer open between guests", "Count change back visibly to guest", "Mix personal cash with drawer", "Skip denomination checks"], correctAnswer: 1, explanation: "Transparent counting prevents errors and conflict." },
+      { id: "q5", question: "Digital wallet payment requires:", options: ["Manual card imprint", "Successful terminal authorization confirmation", "Paper-only signature", "Manager PIN always"], correctAnswer: 1, explanation: "Authorization result is the legal completion signal." },
+      { id: "q6", question: "Refunds should be:", options: ["Processed without record", "Linked to original transaction and reason", "Done as cash always", "Avoided permanently"], correctAnswer: 1, explanation: "Traceable refunds support reconciliation and fraud control." },
+      { id: "q7", question: "Tip handling should follow:", options: ["Server preference only", "Venue policy and local compliance rules", "Random rounding", "No documentation"], correctAnswer: 1, explanation: "Consistent policy avoids payroll and legal issues." },
+      { id: "q8", question: "In payment disputes, staff should:", options: ["Argue with guest", "Escalate with transaction details and receipt", "Delete transaction", "Ignore issue"], correctAnswer: 1, explanation: "Documented escalation resolves faster and fairly." },
+      { id: "q9", question: "End-of-day payment reconciliation compares:", options: ["Weather vs revenue", "POS totals against cash/card settlement", "Menu design", "Staff birthdays"], correctAnswer: 1, explanation: "Reconciliation validates financial accuracy." },
+      { id: "q10", question: "Most important objective in checkout:", options: ["Fastest possible exit only", "Accurate, secure, and courteous completion", "Upsell after card approved only", "Manual override every payment"], correctAnswer: 1, explanation: "Speed matters, but accuracy/security come first." },
+    ],
+  },
+  "haccp-hygiene": {
+    title: "HACCP & Hygiene Final Quiz",
+    questions: [
+      { id: "q1", question: "Food danger zone is approximately:", options: ["-5°C to 0°C", "5°C to 60°C", "60°C to 90°C", "0°C to 2°C"], correctAnswer: 1, explanation: "Microbial growth is fastest in 5°C–60°C range." },
+      { id: "q2", question: "Handwashing should include:", options: ["Water rinse only", "Soap + friction + proper drying", "Gloves without washing", "Only sanitizer"], correctAnswer: 1, explanation: "Mechanical washing is essential before sanitizing." },
+      { id: "q3", question: "Cross-contamination can be reduced by:", options: ["Same board for all foods", "Separate tools for raw and ready-to-eat items", "Reusing marinade", "Ignoring allergen labels"], correctAnswer: 1, explanation: "Separation is core HACCP control." },
+      { id: "q4", question: "Cooked hot food should be held at:", options: ["Below 20°C", "At or above safe hot-hold threshold", "Room temperature", "Exactly 30°C"], correctAnswer: 1, explanation: "Hot-holding prevents pathogen growth." },
+      { id: "q5", question: "Cooling cooked food safely means:", options: ["Leave out overnight", "Rapid cooling with monitored time/temperature", "Seal while steaming hot", "Place near heat lamp"], correctAnswer: 1, explanation: "Rapid cooling minimizes danger-zone exposure." },
+      { id: "q6", question: "Cleaning schedule should define:", options: ["Only who cleans", "What, when, how, and verification", "Only chemical brand", "Only monthly tasks"], correctAnswer: 1, explanation: "Complete SOPs improve repeatability and audits." },
+      { id: "q7", question: "Allergen control requires:", options: ["Guessing from memory", "Clear labeling and avoidance of cross-contact", "Ignoring trace amounts", "Only FOH awareness"], correctAnswer: 1, explanation: "Allergen safety depends on full-chain control." },
+      { id: "q8", question: "If fridge temp is above limit, first action:", options: ["Ignore briefly", "Quarantine at-risk food and report/escalate", "Serve quickly", "Turn off fridge"], correctAnswer: 1, explanation: "Protect food first, then troubleshoot equipment." },
+      { id: "q9", question: "Pest evidence in prep area should be:", options: ["Cleaned and forgotten", "Logged, isolated, and escalated immediately", "Covered with cloth", "Reported weekly"], correctAnswer: 1, explanation: "Immediate response prevents contamination spread." },
+      { id: "q10", question: "HACCP records are important because they:", options: ["Decorate audits", "Prove controls were applied and verified", "Replace training", "Remove need for supervision"], correctAnswer: 1, explanation: "Documented controls are central to compliance." },
+    ],
+  },
+  "kitchen-main": {
+    title: "Kitchen Maintenance Final Quiz",
+    questions: [
+      { id: "q1", question: "A primary sign a knife needs sharpening is:", options: ["Blade feels heavy", "It crushes product instead of slicing cleanly", "Handle is shiny", "Color fades"], correctAnswer: 1, explanation: "Poor cut quality signals dull edge." },
+      { id: "q2", question: "Routine maintenance of ovens should include:", options: ["Only exterior wipe", "Scheduled deep clean + seal/gasket checks", "Avoid cleaning at all", "Power-cycle during service"], correctAnswer: 1, explanation: "Functional checks prevent service failures." },
+      { id: "q3", question: "Best fridge organization method is:", options: ["Random placement", "Raw below ready-to-eat with labeled zones", "Highest shelves for raw poultry", "No date labels"], correctAnswer: 1, explanation: "Zoning reduces contamination risks." },
+      { id: "q4", question: "Equipment maintenance logs should capture:", options: ["Only technician name", "Date, issue, action taken, verification", "Only replacement cost", "Only cleaning chemical"], correctAnswer: 1, explanation: "Actionable logs improve reliability and handover." },
+      { id: "q5", question: "Before cleaning powered equipment:", options: ["Spray while running", "Isolate power and follow lockout-safe steps", "Remove guards permanently", "Use food cloths"], correctAnswer: 1, explanation: "Safety isolation is mandatory for maintenance." },
+      { id: "q6", question: "A blocked drain near prep area should be:", options: ["Ignored until close", "Addressed immediately and sanitized", "Covered with mat", "Reported next week"], correctAnswer: 1, explanation: "Drain issues quickly become hygiene hazards." },
+      { id: "q7", question: "Preventive maintenance is better than reactive because:", options: ["It costs more", "It reduces downtime and emergency repairs", "It removes need for SOPs", "It is optional only"], correctAnswer: 1, explanation: "Prevention protects throughput and food safety." },
+      { id: "q8", question: "When should calibration checks happen?", options: ["Never", "On schedule and after incidents/repairs", "Only during audits", "Only when guests complain"], correctAnswer: 1, explanation: "Calibration keeps measurements trustworthy." },
+      { id: "q9", question: "Which cloth should clean food-contact surfaces?", options: ["Any used rag", "Sanitized dedicated cloths per station", "Floor mop", "Dry tissue only"], correctAnswer: 1, explanation: "Dedicated sanitized tools prevent contamination." },
+      { id: "q10", question: "The goal of station close-down checks is:", options: ["Leave quickly", "Hand over clean, functional, stocked stations", "Lock lights only", "Do paperwork later"], correctAnswer: 1, explanation: "Strong close-down enables consistent next shift starts." },
+    ],
+  },
+  "cocktail-funds": {
+    title: "Cocktail Fundamentals Final Quiz",
+    questions: [
+      { id: "q1", question: "The base spirit in a classic Margarita is:", options: ["Gin", "Tequila", "Rum", "Whiskey"], correctAnswer: 1, explanation: "Margarita is tequila-forward." },
+      { id: "q2", question: "Shaking is preferred when a drink contains:", options: ["Only clear spirits", "Citrus, dairy, or syrups requiring aeration", "No ingredients", "Only vermouth"], correctAnswer: 1, explanation: "Shaking integrates and chills textured mixes." },
+      { id: "q3", question: "Stirring is generally used for:", options: ["Highly pulpy juices", "Spirit-forward drinks needing clarity", "Egg-white sours", "Frozen cocktails"], correctAnswer: 1, explanation: "Stirring preserves texture and clarity." },
+      { id: "q4", question: "A jigger is used to:", options: ["Crush ice", "Measure accurate pour volumes", "Strain herbs", "Smoke glassware"], correctAnswer: 1, explanation: "Consistent measurement controls quality and cost." },
+      { id: "q5", question: "Why does ice quality matter?", options: ["Only visual effect", "Dilution rate and final drink balance", "It does not matter", "Only glass temperature"], correctAnswer: 1, explanation: "Ice drives chilling and dilution." },
+      { id: "q6", question: "Bitters in cocktails primarily add:", options: ["Sugar only", "Aromatic complexity and balance", "Carbonation", "Alcohol proof"], correctAnswer: 1, explanation: "Bitters shape aroma and finish." },
+      { id: "q7", question: "A garnish should be:", options: ["Random and oversized", "Functional to aroma/flavor and consistent", "Optional always", "Prepared at table only"], correctAnswer: 1, explanation: "Garnish should elevate, not distract." },
+      { id: "q8", question: "Most common reason for inconsistent cocktails:", options: ["Guest glass choice", "Inaccurate measurement/pouring", "Bar music volume", "POS layout"], correctAnswer: 1, explanation: "Measurement discipline is key." },
+      { id: "q9", question: "A proper pre-service bar setup includes:", options: ["No mise en place", "Prepared garnishes, chilled glassware, stocked station", "Only spirits", "Only syrups"], correctAnswer: 1, explanation: "Setup enables speed and consistency." },
+      { id: "q10", question: "Balanced cocktail taste usually combines:", options: ["Only sweet", "Acid, sweetness, bitterness, and dilution harmony", "Only bitter", "Only high ABV"], correctAnswer: 1, explanation: "Balance is multi-dimensional, not single-note." },
+    ],
+  },
+  "financial-basics": {
+    title: "Financial Basics Final Quiz",
+    questions: [
+      { id: "q1", question: "COGS stands for:", options: ["Cost of Guest Service", "Cost of Goods Sold", "Cash Over Gross Sales", "Cost of Growth Strategy"], correctAnswer: 1, explanation: "COGS is direct product cost consumed for sales." },
+      { id: "q2", question: "Gross profit is calculated as:", options: ["Revenue - COGS", "Revenue - Rent", "COGS - Revenue", "Revenue + COGS"], correctAnswer: 0, explanation: "Gross profit isolates contribution before operating costs." },
+      { id: "q3", question: "Prime cost usually combines:", options: ["Utilities + marketing", "Labor + COGS", "Rent + tax", "Tips + discounts"], correctAnswer: 1, explanation: "Prime cost is a core controllable KPI." },
+      { id: "q4", question: "A rising food cost percentage with flat sales may indicate:", options: ["Perfect purchasing", "Portioning/waste or purchase price issues", "Lower labor hours only", "Higher guest satisfaction only"], correctAnswer: 1, explanation: "Variance often comes from cost control drift." },
+      { id: "q5", question: "Daily sales report is most useful for:", options: ["Annual tax filing only", "Operational decisions and trend detection", "Changing venue logo", "Skipping reconciliation"], correctAnswer: 1, explanation: "Daily cadence enables timely corrective actions." },
+      { id: "q6", question: "Variance analysis compares:", options: ["Forecast/target vs actual", "Only two random days", "Tips vs weather", "Menu colors"], correctAnswer: 0, explanation: "Variance highlights where performance deviates." },
+      { id: "q7", question: "A healthy margin strategy requires:", options: ["Price cuts only", "Balance of pricing, mix, and cost discipline", "Ignoring supplier contracts", "No recipe standards"], correctAnswer: 1, explanation: "Margin comes from both revenue and cost levers." },
+      { id: "q8", question: "Comped items should be:", options: ["Hidden from reports", "Tracked with reasons and approvals", "Deleted permanently", "Ignored if small"], correctAnswer: 1, explanation: "Comps affect net revenue and accountability." },
+      { id: "q9", question: "Cash flow differs from profit because:", options: ["They are always identical", "Timing of cash movement can differ from accounting profit", "Cash flow ignores payments", "Profit ignores sales"], correctAnswer: 1, explanation: "Liquidity and profitability are related but distinct." },
+      { id: "q10", question: "Best weekly financial routine is:", options: ["Review only at month end", "Review KPIs, investigate variance, assign actions", "Focus only on revenue top line", "Ignore labor trends"], correctAnswer: 1, explanation: "Weekly rhythm keeps operations financially healthy." },
+    ],
+  },
+  "leadership": {
+    title: "Leadership & Scheduling Final Quiz",
+    questions: [
+      { id: "q1", question: "Effective feedback is best when it is:", options: ["Delayed and vague", "Timely, specific, and actionable", "Public and harsh", "Only positive always"], correctAnswer: 1, explanation: "Actionable feedback drives behavior change." },
+      { id: "q2", question: "In conflict resolution, first leader move is:", options: ["Choose a side instantly", "Listen to both perspectives objectively", "Escalate immediately", "Ignore small conflicts"], correctAnswer: 1, explanation: "Fact-finding prevents biased decisions." },
+      { id: "q3", question: "A fair rota/schedule should prioritize:", options: ["Only seniority", "Coverage needs, skills, and legal rest rules", "Random assignment", "Same people every weekend"], correctAnswer: 1, explanation: "Fairness and compliance improve retention." },
+      { id: "q4", question: "Delegation works best when leader provides:", options: ["Task only", "Outcome, constraints, and check-in points", "No context", "Only deadline"], correctAnswer: 1, explanation: "Clarity and support increase execution quality." },
+      { id: "q5", question: "A pre-shift briefing should include:", options: ["Only menu jokes", "Targets, risks, VIP notes, and role assignments", "No updates", "Long policy reading"], correctAnswer: 1, explanation: "Briefings align the team quickly." },
+      { id: "q6", question: "Good leaders monitor morale by:", options: ["Waiting for resignations", "Regular check-ins and observable workload balance", "Reading sales only", "Posting announcements only"], correctAnswer: 1, explanation: "Early signals prevent burnout and turnover." },
+      { id: "q7", question: "When a new trainee struggles, a manager should:", options: ["Remove them permanently", "Coach with clear steps and follow-up", "Publicly criticize", "Ignore errors"], correctAnswer: 1, explanation: "Coaching builds competence and confidence." },
+      { id: "q8", question: "The purpose of SOPs in leadership is to:", options: ["Reduce autonomy completely", "Create consistency and training baseline", "Replace all judgment", "Increase complexity"], correctAnswer: 1, explanation: "SOPs standardize core outcomes." },
+      { id: "q9", question: "Best approach to shift handover between supervisors:", options: ["Verbal only memory", "Structured written + verbal status transfer", "No handover needed", "Personal chat only"], correctAnswer: 1, explanation: "Structured handover reduces operational gaps." },
+      { id: "q10", question: "Leadership success in service operations is measured by:", options: ["Loudest manager", "Team performance, retention, and guest outcomes", "Number of meetings", "Punishment count"], correctAnswer: 1, explanation: "Results and team health define sustainable leadership." },
+    ],
+  },
+  "inventory-ctrl": {
+    title: "Inventory Control Final Quiz",
+    questions: [
+      { id: "q1", question: "PAR level means:", options: ["Maximum legal stock", "Target on-hand quantity to maintain operations", "Expired stock threshold", "Price adjustment rule"], correctAnswer: 1, explanation: "PAR is operational target inventory." },
+      { id: "q2", question: "FIFO in inventory stands for:", options: ["Fast In Fast Out", "First In First Out", "Final Inventory Final Out", "First Inspection First Order"], correctAnswer: 1, explanation: "FIFO reduces spoilage and old-stock usage." },
+      { id: "q3", question: "Cycle counting helps by:", options: ["Replacing all ordering", "Finding variance earlier than monthly stocktake", "Ignoring shrinkage", "Reducing documentation"], correctAnswer: 1, explanation: "Frequent checks catch issues sooner." },
+      { id: "q4", question: "A recurring negative variance often indicates:", options: ["Perfect controls", "Waste, theft, or recording inaccuracies", "Higher guest traffic only", "Menu redesign"], correctAnswer: 1, explanation: "Variance needs root-cause analysis." },
+      { id: "q5", question: "Best reorder decision uses:", options: ["Guesswork", "Usage rate, lead time, and safety stock", "Supplier mood", "One-time promotions only"], correctAnswer: 1, explanation: "Data-driven reorder prevents stockouts and overstock." },
+      { id: "q6", question: "Supplier performance should be reviewed on:", options: ["Logo quality", "Cost, reliability, quality, and lead times", "Website color", "Invoice font"], correctAnswer: 1, explanation: "Procurement quality is multi-factor." },
+      { id: "q7", question: "To reduce waste in perishables:", options: ["Over-order for safety", "Track shelf life and enforce rotation discipline", "Ignore prep yield", "Store all at room temp"], correctAnswer: 1, explanation: "Rotation and shelf-life visibility reduce losses." },
+      { id: "q8", question: "A purchase order should be:", options: ["Verbal only", "Documented with line items, quantities, and approvals", "Submitted after delivery", "Optional for key suppliers"], correctAnswer: 1, explanation: "PO control improves spend governance." },
+      { id: "q9", question: "Stock received should be checked against:", options: ["Only supplier promise", "PO quantity/quality before acceptance", "Guest feedback", "Weekly schedule"], correctAnswer: 1, explanation: "Receiving controls prevent bad inventory intake." },
+      { id: "q10", question: "Most useful inventory KPI set includes:", options: ["Only total stock value", "Stock turns, variance %, waste %, stockout rate", "Only number of suppliers", "Only menu price"], correctAnswer: 1, explanation: "A balanced KPI set drives better decisions." },
+    ],
+  },
+};
+
+function buildFinalQuizChapter(moduleId: string, moduleTitle: string) {
+  const quiz = moduleQuizBank[moduleId];
+  return {
+    id: `${moduleId}-final-quiz`,
+    title: quiz?.title ?? `${moduleTitle} Final Quiz`,
+    duration: "10 Questions",
+    completed: false,
+    type: "QUIZ" as const,
+    passPercent: 70,
+    quizQuestions: quiz?.questions ?? [],
+  };
+}
+
 let lessonVideoIndex = 0;
 
 export const trainingModules = baseTrainingModules.map((module) => ({
   ...module,
-  chapters: (module.chapters || []).map((chapter) => {
-    const videoUrl = lessonVideoLibrary[lessonVideoIndex % lessonVideoLibrary.length];
-    lessonVideoIndex += 1;
-    return {
-      ...chapter,
-      videoUrl,
-    };
-  }),
+  chapters: [
+    ...(module.chapters || []).map((chapter) => {
+      const videoUrl = lessonVideoLibrary[lessonVideoIndex % lessonVideoLibrary.length];
+      lessonVideoIndex += 1;
+      return {
+        ...chapter,
+        type: "VIDEO" as const,
+        videoUrl,
+      };
+    }),
+    buildFinalQuizChapter(module.id, module.title),
+  ],
+  totalLessons: (module.chapters || []).length + 1,
+  completedLessons: 0,
 }));
 
 export const recipes = [

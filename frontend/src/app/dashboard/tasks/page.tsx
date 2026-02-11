@@ -18,7 +18,6 @@ import {
   Sun,
   Moon,
   Sunset,
-  Upload,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,7 +111,6 @@ export default function TasksPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [opsHubOpen, setOpsHubOpen] = useState(false);
-  const [photoModalOpen, setPhotoModalOpen] = useState(false);
 
   // State
   const [isCreating, setIsCreating] = useState(false);
@@ -120,8 +118,14 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Hub shift selector
   const [selectedShiftKey, setSelectedShiftKey] = useState<string | null>(null);
@@ -139,6 +143,120 @@ export default function TasksPage() {
 
   const currentShift = getShiftDetails();
   const venueId = selectedVenue?.id;
+
+  const stopCameraStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraOpen(false);
+  }, []);
+
+  const setSelectedPhotoFile = useCallback((file: File | null) => {
+    setPhotoFile(file);
+    setPhotoPreviewUrl((previousPreview) => {
+      if (previousPreview) URL.revokeObjectURL(previousPreview);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }, []);
+
+  const closeTaskModal = useCallback(() => {
+    setCreateModalOpen(false);
+    setEditModalOpen(false);
+    setSelectedTask(null);
+    setCameraError(null);
+    stopCameraStream();
+    setSelectedPhotoFile(null);
+  }, [setSelectedPhotoFile, stopCameraStream]);
+
+  const startCameraCapture = useCallback(async () => {
+    setCameraError(null);
+
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setIsStartingCamera(true);
+
+    try {
+      stopCameraStream();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOpen(true);
+
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play();
+        }
+      });
+    } catch {
+      setCameraError("Camera is unavailable. Please use your device camera picker.");
+      fileInputRef.current?.click();
+    } finally {
+      setIsStartingCamera(false);
+    }
+  }, [stopCameraStream]);
+
+  const capturePhotoFromCamera = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      toast.error("Camera is not ready yet");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast.error("Failed to capture photo");
+      return;
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          toast.error("Failed to capture photo");
+          return;
+        }
+        setSelectedPhotoFile(
+          new File([blob], `haccp-proof-${Date.now()}.jpg`, {
+            type: "image/jpeg",
+          })
+        );
+        stopCameraStream();
+      },
+      "image/jpeg",
+      0.9
+    );
+  }, [setSelectedPhotoFile, stopCameraStream]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    };
+  }, [photoPreviewUrl]);
 
   // ─── Load Tasks & Staff ───────────────────────────────
   const loadAllTasks = useCallback(async () => {
@@ -236,8 +354,7 @@ export default function TasksPage() {
       setTasks((prev) =>
         prev.map((t) => (t.id === selectedTask!.id ? updatedTask : t))
       );
-      setEditModalOpen(false);
-      setSelectedTask(null);
+      closeTaskModal();
       toast.success("Task updated");
     } else {
       toast.error(res.error || "Failed to update task");
@@ -257,6 +374,9 @@ export default function TasksPage() {
   };
 
   const openEditModal = (task: Task) => {
+    setCameraError(null);
+    stopCameraStream();
+    setSelectedPhotoFile(null);
     setSelectedTask(task);
     setTaskForm({
       title: task.title,
@@ -332,28 +452,31 @@ export default function TasksPage() {
     setIsGenerating(false);
   };
 
-  const handlePhotoUpload = async () => {
+  const handlePhotoUpload = useCallback(async () => {
     if (!selectedTask || !photoFile) {
       toast.error("Please select a photo first");
       return;
     }
+
+    const selectedTaskId = selectedTask.id;
     setIsUploadingPhoto(true);
 
-    const res = await uploadTaskPhoto(selectedTask.id, photoFile, true);
+    const res = await uploadTaskPhoto(selectedTaskId, photoFile, true);
 
     if (res.success && res.data) {
       const updated = res.data;
       setTasks((prev) =>
-        prev.map((t) => (t.id === selectedTask!.id ? updated : t))
+        prev.map((t) => (t.id === selectedTaskId ? updated : t))
       );
-      setPhotoModalOpen(false);
-      setPhotoFile(null);
+      setSelectedTask(updated);
+      setSelectedPhotoFile(null);
+      stopCameraStream();
       toast.success("Photo attached & task completed");
     } else {
       toast.error(res.error || "Failed to upload photo");
     }
     setIsUploadingPhoto(false);
-  };
+  }, [photoFile, selectedTask, setSelectedPhotoFile, stopCameraStream]);
 
   // ─── Drag & Drop ──────────────────────────────────────
   const onDragStart = (e: React.DragEvent, taskId: number) => {
@@ -377,8 +500,8 @@ export default function TasksPage() {
         task?.requiresPhoto &&
         !task.photoUrl
       ) {
-        setSelectedTask(task);
-        setPhotoModalOpen(true);
+        openEditModal(task);
+        toast.info("Take a picture first to complete this HACCP task");
         setDraggedTaskId(null);
         return;
       }
@@ -674,19 +797,7 @@ export default function TasksPage() {
                           key={task.id}
                           draggable
                           onDragStart={(e: any) => onDragStart(e, task.id)}
-                          onClick={() => {
-                            if (
-                              task.requiresPhoto &&
-                              !task.photoUrl &&
-                              task.status.toUpperCase() !== "DONE"
-                            ) {
-                              setSelectedTask(task);
-                              setPhotoFile(null);
-                              setPhotoModalOpen(true);
-                            } else {
-                              openEditModal(task);
-                            }
-                          }}
+                          onClick={() => openEditModal(task)}
                           className={`
                             bg-card hover:bg-muted/50 border border-border rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing group relative
                             ${task.requiresPhoto ? "border-l-4 border-l-purple-500" : ""}
@@ -786,8 +897,7 @@ export default function TasksPage() {
         open={createModalOpen || editModalOpen}
         onOpenChange={(v) => {
           if (!v) {
-            setCreateModalOpen(false);
-            setEditModalOpen(false);
+            closeTaskModal();
           }
         }}
       >
@@ -926,6 +1036,132 @@ export default function TasksPage() {
               </div>
               <Camera className="h-4 w-4 text-purple-500 ml-auto" />
             </div>
+
+            {editModalOpen && selectedTask?.requiresPhoto && (
+              <div className="space-y-3 rounded-lg border border-purple-500/30 bg-purple-500/5 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Camera className="h-4 w-4 text-purple-500" />
+                    HACCP Proof
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={
+                      selectedTask.photoUrl
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : "bg-purple-500/10 text-purple-400"
+                    }
+                  >
+                    {selectedTask.photoUrl ? "Verified" : "Photo Required"}
+                  </Badge>
+                </div>
+
+                {cameraOpen ? (
+                  <div className="space-y-2">
+                    <div className="overflow-hidden rounded-lg border border-border bg-black">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="max-h-64 w-full object-cover"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        className="flex-1 gap-2"
+                        onClick={capturePhotoFromCamera}
+                      >
+                        <Camera className="h-4 w-4" />
+                        Capture Picture
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={stopCameraStream}
+                      >
+                        Cancel Camera
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {photoPreviewUrl ? (
+                      <div className="overflow-hidden rounded-lg border border-border">
+                        <img
+                          src={photoPreviewUrl}
+                          alt="Photo proof preview"
+                          className="max-h-64 w-full object-cover"
+                        />
+                      </div>
+                    ) : selectedTask.photoUrl ? (
+                      <div className="overflow-hidden rounded-lg border border-border">
+                        <img
+                          src={selectedTask.photoUrl}
+                          alt="Existing task proof"
+                          className="max-h-64 w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-center text-xs text-muted-foreground">
+                        No photo captured yet for this task.
+                      </div>
+                    )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        if (file) {
+                          setSelectedPhotoFile(file);
+                        }
+                        e.currentTarget.value = "";
+                      }}
+                    />
+
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={startCameraCapture}
+                        disabled={isStartingCamera}
+                      >
+                        {isStartingCamera ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Camera className="h-4 w-4" />
+                        )}
+                        {photoPreviewUrl ? "Retake Picture" : "Take Picture"}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        className="flex-1 gap-2"
+                        onClick={handlePhotoUpload}
+                        disabled={!photoFile || isUploadingPhoto}
+                      >
+                        {isUploadingPhoto ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        Upload & Complete
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {cameraError && (
+                  <p className="text-xs text-amber-500">{cameraError}</p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             {editModalOpen && isPrivileged && (
@@ -942,8 +1178,7 @@ export default function TasksPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setCreateModalOpen(false);
-                setEditModalOpen(false);
+                closeTaskModal();
               }}
             >
               Cancel
@@ -1104,105 +1339,6 @@ export default function TasksPage() {
               </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── Photo Upload Modal (HACCP) ──────────────── */}
-      <Dialog open={photoModalOpen} onOpenChange={setPhotoModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Camera className="h-5 w-5 text-purple-500" />
-              Proof Required
-            </DialogTitle>
-            <DialogDescription>
-              This is a mandatory HACCP task. Please upload a photo to verify
-              completion.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-border rounded-xl bg-muted/20 gap-4">
-            {photoFile ? (
-              <div className="text-center space-y-2">
-                <div className="h-32 w-32 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-                  <img
-                    src={URL.createObjectURL(photoFile)}
-                    alt="Preview"
-                    className="h-full w-full object-cover rounded-lg"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {photoFile.name}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPhotoFile(null)}
-                >
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center">
-                  <Camera className="h-10 w-10 text-muted-foreground" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium">Click to select a photo</p>
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG up to 10MB
-                  </p>
-                </div>
-              </>
-            )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) setPhotoFile(file);
-              }}
-            />
-
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {photoFile ? "Change Photo" : "Select Photo"}
-            </Button>
-          </div>
-
-          <DialogFooter className="sm:justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setPhotoModalOpen(false);
-                setPhotoFile(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handlePhotoUpload}
-              disabled={!photoFile || isUploadingPhoto}
-              className="gap-2"
-            >
-              {isUploadingPhoto ? (
-                <Loader2 className="animate-spin h-4 w-4" />
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Upload & Complete Task
-                </>
-              )}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

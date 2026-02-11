@@ -368,6 +368,16 @@ export interface Handover {
 
 export type LearningProgressMap = Record<string, string[]>;
 
+export interface TraineeLearningProgress {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: 'OWNER' | 'MANAGER' | 'CHEF' | 'STAFF' | 'TRAINEE';
+  completedByModule: LearningProgressMap;
+  lastCompletedAt: string | null;
+}
+
 // ============================================
 // AUTH & AI TYPES
 // ============================================
@@ -1026,6 +1036,13 @@ export async function updateLearningModuleProgress(
     method: 'PUT',
     body: JSON.stringify({ completedChapterIds }),
   });
+}
+
+export async function getTraineeLearningProgress(
+  venueId?: number
+): Promise<ApiResponse<TraineeLearningProgress[]>> {
+  const query = venueId ? `?venueId=${venueId}` : '';
+  return fetchAuthApi<TraineeLearningProgress[]>(`/learning/progress/trainees${query}`);
 }
 
 // ============================================

@@ -26,9 +26,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { revenueData, alerts, todaysShift, reservations, tasks } from "@/lib/mock-data";
+import { trainingModules } from "@/lib/mock-data";
+import { getTraineeLearningProgress, type TraineeLearningProgress } from "@/lib/api";
+import { useVenue } from "@/lib/venue-context";
 
 // ─── Extended Mock Data for Manager View ───────────────────────────────────
 
@@ -58,6 +61,48 @@ const INITIAL_86_ITEMS = [
   { id: "1", name: "Sea Bass", category: "Food", time: "18:20", author: "Chef" },
   { id: "2", name: "Mint Leaves", category: "Bar", time: "19:05", author: "Bar Mgr" },
 ];
+
+const TRAINEE_MODULES = trainingModules.filter((module) => module.roles.includes("TRAINEE"));
+const TRAINEE_MODULE_META = TRAINEE_MODULES.map((module) => ({
+  id: module.id,
+  title: module.title,
+  totalLessons: Array.isArray(module.chapters) ? module.chapters.length : module.totalLessons,
+}));
+const TRAINEE_TOTAL_LESSONS = TRAINEE_MODULE_META.reduce((sum, module) => sum + module.totalLessons, 0);
+
+function formatLastActive(lastCompletedAt: string | null): string {
+  if (!lastCompletedAt) return "No activity yet";
+  const date = new Date(lastCompletedAt);
+  if (Number.isNaN(date.getTime())) return "No activity yet";
+  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function computeTraineeStats(row: TraineeLearningProgress) {
+  const moduleStats = TRAINEE_MODULE_META.map((module) => {
+    const completedSet = new Set(row.completedByModule?.[module.id] || []);
+    const completed = Math.min(completedSet.size, module.totalLessons);
+    const percent = module.totalLessons > 0 ? (completed / module.totalLessons) * 100 : 0;
+    return {
+      ...module,
+      completed,
+      percent,
+      done: module.totalLessons > 0 && completed >= module.totalLessons,
+    };
+  });
+
+  const completedLessons = moduleStats.reduce((sum, module) => sum + module.completed, 0);
+  const progressPercent = TRAINEE_TOTAL_LESSONS > 0 ? (completedLessons / TRAINEE_TOTAL_LESSONS) * 100 : 0;
+  const completedModules = moduleStats.filter((module) => module.done).length;
+
+  return {
+    moduleStats,
+    completedLessons,
+    progressPercent,
+    completedModules,
+    level: completedModules,
+    atRisk: progressPercent < 30,
+  };
+}
 
 // ─── Components ────────────────────────────────────────────────────────────
 
@@ -341,9 +386,184 @@ function ManagerTools() {
   );
 }
 
+function LearningProgressTracker({
+  trainees,
+  loading,
+  error,
+}: {
+  trainees: TraineeLearningProgress[];
+  loading: boolean;
+  error: string | null;
+}) {
+  const traineeCards = useMemo(() => {
+    return trainees.map((trainee) => ({
+      trainee,
+      stats: computeTraineeStats(trainee),
+    })).sort((a, b) => a.stats.progressPercent - b.stats.progressPercent);
+  }, [trainees]);
+
+  const summary = useMemo(() => {
+    if (traineeCards.length === 0) {
+      return {
+        avgProgress: 0,
+        masteredModules: 0,
+        atRiskCount: 0,
+      };
+    }
+
+    const avgProgress =
+      traineeCards.reduce((sum, row) => sum + row.stats.progressPercent, 0) / traineeCards.length;
+    const masteredModules = traineeCards.reduce((sum, row) => sum + row.stats.completedModules, 0);
+    const atRiskCount = traineeCards.filter((row) => row.stats.atRisk).length;
+
+    return { avgProgress, masteredModules, atRiskCount };
+  }, [traineeCards]);
+
+  return (
+    <Card className="border-indigo-500/30 bg-indigo-500/5">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-indigo-400" />
+          Trainee Learning Tracker
+        </CardTitle>
+        <CardDescription>
+          Detailed module completion analytics for each trainee.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-border bg-background/40 p-3">
+            <p className="text-xs uppercase text-muted-foreground">Trainees Tracked</p>
+            <p className="text-xl font-bold text-foreground">{traineeCards.length}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-background/40 p-3">
+            <p className="text-xs uppercase text-muted-foreground">Avg Progress</p>
+            <p className="text-xl font-bold text-foreground">{summary.avgProgress.toFixed(0)}%</p>
+          </div>
+          <div className="rounded-lg border border-border bg-background/40 p-3">
+            <p className="text-xs uppercase text-muted-foreground">Modules Mastered</p>
+            <p className="text-xl font-bold text-foreground">{summary.masteredModules}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-background/40 p-3">
+            <p className="text-xs uppercase text-muted-foreground">Need Attention</p>
+            <p className="text-xl font-bold text-amber-400">{summary.atRiskCount}</p>
+          </div>
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 mr-2 animate-spin" />
+            Loading trainee learning progress...
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && traineeCards.length === 0 && (
+          <div className="rounded-md border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+            No trainees found for this venue yet.
+          </div>
+        )}
+
+        {!loading && !error && traineeCards.length > 0 && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {traineeCards.map(({ trainee, stats }) => (
+              <div key={trainee.userId} className="rounded-lg border border-border bg-background/40 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>
+                        {trainee.firstName[0]}{trainee.lastName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold text-foreground">{trainee.firstName} {trainee.lastName}</p>
+                      <p className="text-xs text-muted-foreground">{trainee.email}</p>
+                    </div>
+                  </div>
+                  <Badge className={stats.atRisk ? "bg-amber-500/20 text-amber-300 border-0" : "bg-emerald-500/20 text-emerald-300 border-0"}>
+                    Lv.{stats.level}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Overall Progress</span>
+                    <span>{stats.completedLessons}/{TRAINEE_TOTAL_LESSONS} lessons ({stats.progressPercent.toFixed(0)}%)</span>
+                  </div>
+                  <Progress value={stats.progressPercent} className="h-2" />
+                  <p className="text-[11px] text-muted-foreground">
+                    Modules mastered: {stats.completedModules}/{TRAINEE_MODULE_META.length} · Last activity: {formatLastActive(trainee.lastCompletedAt)}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Module Breakdown</p>
+                  <div className="grid grid-cols-1 gap-2 max-h-44 overflow-y-auto pr-1">
+                    {stats.moduleStats.map((module) => (
+                      <div key={`${trainee.userId}-${module.id}`} className="rounded-md border border-border/80 p-2">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-foreground">{module.title}</span>
+                          <span className="text-muted-foreground">
+                            {module.completed}/{module.totalLessons}
+                          </span>
+                        </div>
+                        <Progress value={module.percent} className="h-1.5" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 export default function ManagerDashboard() {
+  const { selectedVenue } = useVenue();
+  const [traineeProgress, setTraineeProgress] = useState<TraineeLearningProgress[]>([]);
+  const [learningLoading, setLearningLoading] = useState(true);
+  const [learningError, setLearningError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadTraineeProgress = async () => {
+      setLearningLoading(true);
+      setLearningError(null);
+      const response = await getTraineeLearningProgress(selectedVenue?.id);
+
+      if (!isMounted) return;
+
+      if (response.success && response.data) {
+        setTraineeProgress(response.data);
+      } else {
+        setTraineeProgress([]);
+        setLearningError(response.error || "Failed to load trainee learning progress");
+      }
+      setLearningLoading(false);
+    };
+
+    void loadTraineeProgress();
+    const intervalId = window.setInterval(() => {
+      void loadTraineeProgress();
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [selectedVenue?.id]);
+
   return (
     <div className="space-y-6">
        {/* Header */}
@@ -383,6 +603,12 @@ export default function ManagerDashboard() {
          </div>
 
       </div>
+
+      <LearningProgressTracker
+        trainees={traineeProgress}
+        loading={learningLoading}
+        error={learningError}
+      />
     </div>
   );
 }

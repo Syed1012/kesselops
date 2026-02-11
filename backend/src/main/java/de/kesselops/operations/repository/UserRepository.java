@@ -1,6 +1,7 @@
 package de.kesselops.operations.repository;
 
 import de.kesselops.operations.model.User;
+import de.kesselops.shared.model.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -22,6 +23,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByVenueIdAndIsActiveTrue(Long venueId);
 
     List<User> findByVenueId(Long venueId);
+
+    List<User> findByVenueIdAndRole(Long venueId, Role role);
 
     boolean existsByIdAndVenueId(Long id, Long venueId);
 

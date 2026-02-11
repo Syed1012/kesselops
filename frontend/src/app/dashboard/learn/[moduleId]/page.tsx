@@ -22,6 +22,13 @@ import { AIChatPanel } from "@/components/AIChatPanel";
 // Dynamic import for ReactPlayer to avoid SSR issues
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
+type QuizResult = {
+  score: number;
+  total: number;
+  percent: number;
+  passed: boolean;
+};
+
 export default function CoursePlayerPage() {
   const params = useParams();
   const router = useRouter();
@@ -37,6 +44,8 @@ export default function CoursePlayerPage() {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isProgressReady, setIsProgressReady] = useState(false);
   const hasInitializedProgress = useRef(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -134,6 +143,8 @@ export default function CoursePlayerPage() {
 
   useEffect(() => {
     setVideoError(null);
+    setQuizAnswers({});
+    setQuizResult(null);
   }, [activeChapter]);
 
   if (!isClient || !module) {
@@ -145,19 +156,58 @@ export default function CoursePlayerPage() {
   }
 
   const activeLesson = module.chapters?.find((c: any) => c.id === activeChapter) || module.chapters?.[0];
+  const isQuizLesson = activeLesson?.type === "QUIZ";
+  const quizQuestions = isQuizLesson && Array.isArray(activeLesson?.quizQuestions) ? activeLesson.quizQuestions : [];
+  const quizPassPercent = isQuizLesson ? Number(activeLesson?.passPercent ?? 70) : 0;
   const lessonVideoUrl: string = activeLesson?.videoUrl || "";
   const isDirectVideoFile = /\.(mp4|webm|ogg)(\?.*)?$/i.test(lessonVideoUrl);
 
   const handleVideoCompleted = () => {
+    if (isQuizLesson) return;
     if (activeChapter && !completedChapters.includes(activeChapter)) {
       setCompletedChapters(prev => [...prev, activeChapter]);
     }
   };
 
   const handleManualComplete = () => {
+    if (isQuizLesson) return;
     if (activeChapter && !completedChapters.includes(activeChapter)) {
       setCompletedChapters(prev => [...prev, activeChapter]);
     }
+  };
+
+  const handleSelectQuizAnswer = (questionId: string, optionIndex: number) => {
+    setQuizAnswers((prev) => ({ ...prev, [questionId]: optionIndex }));
+  };
+
+  const handleSubmitQuiz = () => {
+    if (!isQuizLesson || !activeChapter || quizQuestions.length === 0) return;
+
+    const allAnswered = quizQuestions.every((q: any) => Number.isInteger(quizAnswers[q.id]));
+    if (!allAnswered) return;
+
+    const correctAnswers = quizQuestions.reduce((count: number, q: any) => {
+      return count + (quizAnswers[q.id] === q.correctAnswer ? 1 : 0);
+    }, 0);
+
+    const percent = (correctAnswers / quizQuestions.length) * 100;
+    const passed = percent >= quizPassPercent;
+
+    setQuizResult({
+      score: correctAnswers,
+      total: quizQuestions.length,
+      percent,
+      passed,
+    });
+
+    if (passed && !completedChapters.includes(activeChapter)) {
+      setCompletedChapters((prev) => [...prev, activeChapter]);
+    }
+  };
+
+  const handleRetryQuiz = () => {
+    setQuizAnswers({});
+    setQuizResult(null);
   };
 
   const progressPercentage = module.chapters.length > 0
@@ -175,56 +225,132 @@ export default function CoursePlayerPage() {
           </Button>
         </div>
 
-        {/* Video Player */}
-        <div className="aspect-video bg-black rounded-xl overflow-hidden relative group shadow-2xl border border-white/10">
-          {lessonVideoUrl ? (
-            isClient && isDirectVideoFile ? (
-              <video
-                key={activeLesson?.id || lessonVideoUrl}
-                src={lessonVideoUrl}
-                className="w-full h-full"
-                controls
-                preload="metadata"
-                playsInline
-                onEnded={handleVideoCompleted}
-                onError={() => setVideoError("This lesson video could not be loaded.")}
-              />
-            ) : isClient ? (
-              <ReactPlayer
-                key={activeLesson?.id || lessonVideoUrl}
-                url={lessonVideoUrl}
-                width="100%"
-                height="100%"
-                controls
-                playing={false}
-                onReady={() => console.log('Player ready', lessonVideoUrl)}
-                onError={(e: any) => {
-                  console.error('Player error', e, lessonVideoUrl);
-                  setVideoError("This lesson video could not be loaded.");
-                }}
-                onEnded={handleVideoCompleted}
-                config={{
-                  youtube: {
-                    playerVars: { showinfo: 1 }
-                  } as any
-                }}
-              />
+        {/* Lesson Content */}
+        {isQuizLesson ? (
+          <Card className="border-white/10 bg-card/60">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>{activeLesson?.title}</span>
+                <Badge variant="outline">Final Quiz</Badge>
+              </CardTitle>
+              <CardDescription>
+                Answer all 10 questions. Passing score: {quizPassPercent}%.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {quizQuestions.map((q: any, index: number) => {
+                const selected = quizAnswers[q.id];
+                const isAnswered = Number.isInteger(selected);
+                return (
+                  <div key={q.id} className="space-y-2 rounded-lg border border-border bg-background/40 p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {index + 1}. {q.question}
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {q.options.map((option: string, optionIndex: number) => {
+                        const isSelected = selected === optionIndex;
+                        return (
+                          <button
+                            key={`${q.id}-${optionIndex}`}
+                            type="button"
+                            onClick={() => handleSelectQuizAnswer(q.id, optionIndex)}
+                            className={`text-left text-sm px-3 py-2 rounded-md border transition-colors ${
+                              isSelected
+                                ? "border-primary bg-primary/10 text-foreground"
+                                : "border-border hover:bg-muted/40 text-muted-foreground"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!isAnswered && (
+                      <p className="text-xs text-muted-foreground">Choose one answer</p>
+                    )}
+                    {quizResult && (
+                      <p className="text-xs text-muted-foreground">{q.explanation}</p>
+                    )}
+                  </div>
+                );
+              })}
+
+              {quizResult && (
+                <div className={`rounded-md border p-3 text-sm ${
+                  quizResult.passed
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                }`}>
+                  Score: {quizResult.score}/{quizResult.total} ({quizResult.percent.toFixed(0)}%)
+                  {quizResult.passed ? " - Passed" : " - Not passed, retry to complete module."}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={handleSubmitQuiz}
+                  disabled={quizQuestions.some((q: any) => !Number.isInteger(quizAnswers[q.id]))}
+                  className="gap-2"
+                >
+                  Submit Quiz
+                </Button>
+                <Button variant="outline" onClick={handleRetryQuiz}>
+                  Retry
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="aspect-video bg-black rounded-xl overflow-hidden relative group shadow-2xl border border-white/10">
+            {lessonVideoUrl ? (
+              isClient && isDirectVideoFile ? (
+                <video
+                  key={activeLesson?.id || lessonVideoUrl}
+                  src={lessonVideoUrl}
+                  className="w-full h-full"
+                  controls
+                  preload="metadata"
+                  playsInline
+                  onEnded={handleVideoCompleted}
+                  onError={() => setVideoError("This lesson video could not be loaded.")}
+                />
+              ) : isClient ? (
+                <ReactPlayer
+                  key={activeLesson?.id || lessonVideoUrl}
+                  url={lessonVideoUrl}
+                  width="100%"
+                  height="100%"
+                  controls
+                  playing={false}
+                  onReady={() => console.log('Player ready', lessonVideoUrl)}
+                  onError={(e: any) => {
+                    console.error('Player error', e, lessonVideoUrl);
+                    setVideoError("This lesson video could not be loaded.");
+                  }}
+                  onEnded={handleVideoCompleted}
+                  config={{
+                    youtube: {
+                      playerVars: { showinfo: 1 }
+                    } as any
+                  }}
+                />
+              ) : (
+               <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+               </div>
+              )
             ) : (
-             <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
-             </div>
-            )
-          ) : (
-            <div className="w-full h-full bg-slate-900 flex items-center justify-center text-slate-500">
-              <p>Video not available</p>
-            </div>
-          )}
-          {videoError && (
-            <div className="absolute inset-x-3 bottom-3 bg-red-500/20 border border-red-500/40 text-red-100 rounded-md p-2 text-xs">
-              {videoError}
-            </div>
-          )}
-        </div>
+              <div className="w-full h-full bg-slate-900 flex items-center justify-center text-slate-500">
+                <p>Video not available</p>
+              </div>
+            )}
+            {videoError && (
+              <div className="absolute inset-x-3 bottom-3 bg-red-500/20 border border-red-500/40 text-red-100 rounded-md p-2 text-xs">
+                {videoError}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Lesson Details */}
         <Card className="flex-1">
@@ -249,7 +375,9 @@ export default function CoursePlayerPage() {
                     <h3>Lesson Overview</h3>
                     <p>
                         In this lesson, we cover the essential aspects of <strong>{activeLesson?.title}</strong>. 
-                        Please watch the video carefully. The system effectively tracks your progress as you complete each video.
+                        {isQuizLesson
+                          ? " Complete the final assessment to finish this module."
+                          : " Please watch the video carefully. The system effectively tracks your progress as you complete each video."}
                     </p>
                 </div>
             </CardContent>
@@ -304,7 +432,9 @@ export default function CoursePlayerPage() {
                                         <p className={`text-sm font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>
                                             {chapter.title}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">{chapter.duration}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {chapter.type === "QUIZ" ? "Final Quiz · 10 Questions" : chapter.duration}
+                                        </p>
                                     </div>
                                 </button>
                             );
@@ -316,11 +446,15 @@ export default function CoursePlayerPage() {
                 <Button 
                   className="w-full" 
                   onClick={handleManualComplete}
-                  disabled={completedChapters.includes(activeChapter!)}
+                  disabled={isQuizLesson || completedChapters.includes(activeChapter!)}
                   variant={completedChapters.includes(activeChapter!) ? "outline" : "default"}
                 >
                     <CheckCircle2 className="mr-2 h-4 w-4" /> 
-                    {completedChapters.includes(activeChapter!) ? "Completed" : "Mark Lesson Complete"}
+                    {isQuizLesson
+                      ? "Complete Quiz to Finish"
+                      : completedChapters.includes(activeChapter!)
+                      ? "Completed"
+                      : "Mark Lesson Complete"}
                 </Button>
             </div>
         </Card>

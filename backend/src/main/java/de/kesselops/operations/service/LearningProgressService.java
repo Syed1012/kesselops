@@ -1,7 +1,10 @@
 package de.kesselops.operations.service;
 
 import de.kesselops.operations.model.LearningProgress;
+import de.kesselops.operations.model.User;
 import de.kesselops.operations.repository.LearningProgressRepository;
+import de.kesselops.operations.repository.UserRepository;
+import de.kesselops.shared.model.Role;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +18,15 @@ import java.util.*;
 public class LearningProgressService {
 
     private final LearningProgressRepository learningProgressRepository;
+    private final UserRepository userRepository;
+    private final VenueAccessService venueAccessService;
 
-    public LearningProgressService(LearningProgressRepository learningProgressRepository) {
+    public LearningProgressService(LearningProgressRepository learningProgressRepository,
+                                   UserRepository userRepository,
+                                   VenueAccessService venueAccessService) {
         this.learningProgressRepository = learningProgressRepository;
+        this.userRepository = userRepository;
+        this.venueAccessService = venueAccessService;
     }
 
     /**
@@ -74,6 +83,74 @@ public class LearningProgressService {
         return new ArrayList<>(normalizedChapterIds);
     }
 
+    /**
+     * Get trainee learning progress for a venue (manager analytics).
+     */
+    public List<TraineeProgressRow> getVenueTraineeProgress(User currentUser, Long venueId) {
+        Long effectiveVenueId = resolveEffectiveVenueId(currentUser, venueId);
+        List<User> trainees = userRepository.findByVenueIdAndRole(effectiveVenueId, Role.TRAINEE);
+        if (trainees.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> traineeIds = trainees.stream().map(User::getId).toList();
+        List<LearningProgress> rows = learningProgressRepository.findByUserIdInOrderByUserIdAscModuleIdAscCompletedAtAsc(traineeIds);
+
+        Map<Long, Map<String, LinkedHashSet<String>>> progressByUser = new HashMap<>();
+        Map<Long, Instant> lastCompletedByUser = new HashMap<>();
+
+        for (LearningProgress row : rows) {
+            progressByUser
+                    .computeIfAbsent(row.getUserId(), ignored -> new LinkedHashMap<>())
+                    .computeIfAbsent(row.getModuleId(), ignored -> new LinkedHashSet<>())
+                    .add(row.getChapterId());
+
+            Instant currentLatest = lastCompletedByUser.get(row.getUserId());
+            if (currentLatest == null || row.getCompletedAt().isAfter(currentLatest)) {
+                lastCompletedByUser.put(row.getUserId(), row.getCompletedAt());
+            }
+        }
+
+        return trainees.stream()
+                .map(trainee -> {
+                    Map<String, List<String>> completedByModule = new LinkedHashMap<>();
+                    Map<String, LinkedHashSet<String>> moduleMap = progressByUser.getOrDefault(trainee.getId(), Map.of());
+                    moduleMap.forEach((moduleId, chapterIds) -> completedByModule.put(moduleId, new ArrayList<>(chapterIds)));
+
+                    return new TraineeProgressRow(
+                            trainee.getId(),
+                            trainee.getFirstName(),
+                            trainee.getLastName(),
+                            trainee.getEmail(),
+                            trainee.getRole(),
+                            completedByModule,
+                            lastCompletedByUser.get(trainee.getId())
+                    );
+                })
+                .toList();
+    }
+
+    private Long resolveEffectiveVenueId(User currentUser, Long requestedVenueId) {
+        if (currentUser.getRole() == Role.OWNER) {
+            if (requestedVenueId == null) {
+                throw new IllegalArgumentException("Venue ID is required");
+            }
+            if (!venueAccessService.canAccessVenue(currentUser, requestedVenueId)) {
+                throw new IllegalArgumentException("Access denied to venue");
+            }
+            return requestedVenueId;
+        }
+
+        Long userVenueId = currentUser.getVenueId();
+        if (userVenueId == null) {
+            throw new IllegalArgumentException("No venue assigned");
+        }
+        if (!venueAccessService.canAccessVenue(currentUser, userVenueId)) {
+            throw new IllegalArgumentException("Access denied to venue");
+        }
+        return userVenueId;
+    }
+
     private String normalizeModuleId(String moduleId) {
         if (moduleId == null || moduleId.isBlank()) {
             throw new IllegalArgumentException("Module ID is required");
@@ -98,4 +175,14 @@ public class LearningProgressService {
         }
         return chapterIds;
     }
+
+    public record TraineeProgressRow(
+            Long userId,
+            String firstName,
+            String lastName,
+            String email,
+            Role role,
+            Map<String, List<String>> completedByModule,
+            Instant lastCompletedAt
+    ) {}
 }

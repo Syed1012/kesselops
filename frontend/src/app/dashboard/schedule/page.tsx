@@ -84,6 +84,13 @@ const roleColors: Record<string, string> = {
 // Days of the week
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const getLocalDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function SchedulePage() {
   const { user: currentUser } = useAuth();
   const { selectedVenue } = useVenue();
@@ -321,7 +328,7 @@ export default function SchedulePage() {
     setEditingShiftId(null);
     setShiftForm({
       ...shiftForm,
-      date: date || weekDates[0].fullDate,
+      date: date || getLocalDateInputValue(new Date()),
       userId: userId || "",
     });
     setCreateModalOpen(true);

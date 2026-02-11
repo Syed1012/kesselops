@@ -58,5 +58,23 @@ public class LearningProgressController {
         }
     }
 
+    /**
+     * Get trainee learning progress for manager analytics.
+     */
+    @GetMapping("/trainees")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER', 'CHEF')")
+    public ResponseEntity<ApiResponse<List<LearningProgressService.TraineeProgressRow>>> getTraineeProgress(
+            @AuthenticationPrincipal User currentUser,
+            @RequestParam(required = false) Long venueId
+    ) {
+        try {
+            List<LearningProgressService.TraineeProgressRow> rows =
+                    learningProgressService.getVenueTraineeProgress(currentUser, venueId);
+            return ResponseEntity.ok(ApiResponse.success(rows));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
+        }
+    }
+
     public record UpdateModuleProgressRequest(List<String> completedChapterIds) {}
 }

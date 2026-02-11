@@ -16,5 +16,7 @@ public interface LearningProgressRepository extends JpaRepository<LearningProgre
 
     List<LearningProgress> findByUserIdAndModuleId(Long userId, String moduleId);
 
+    List<LearningProgress> findByUserIdInOrderByUserIdAscModuleIdAscCompletedAtAsc(List<Long> userIds);
+
     void deleteByUserIdAndModuleIdAndChapterIdIn(Long userId, String moduleId, List<String> chapterIds);
 }
