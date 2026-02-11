@@ -1,5 +1,5 @@
--- Guest module database schema
--- Flyway migration V1
+-- V6__Create_Guest_Schema.sql
+-- Guest module: Guests, Reservations, Tables, Sessions, Orders, Payments
 
 CREATE SCHEMA IF NOT EXISTS guest;
 
@@ -31,7 +31,13 @@ CREATE TABLE guest.reservations (
     party_size INTEGER NOT NULL,
     reservation_time TIMESTAMP NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Added columns from previous migrations
+    guest_name VARCHAR(100),
+    guest_email VARCHAR(100),
+    guest_phone VARCHAR(20),
+    table_id BIGINT,
+    notes TEXT
 );
 
 -- Table sessions (started via QR scan)
@@ -46,6 +52,18 @@ CREATE TABLE guest.sessions (
     started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     closed_at TIMESTAMP,
     session_code VARCHAR(4)
+);
+
+-- Cart items for shared cart functionality
+CREATE TABLE guest.cart_items (
+    id BIGSERIAL PRIMARY KEY,
+    session_id BIGINT NOT NULL REFERENCES guest.sessions(id) ON DELETE CASCADE,
+    menu_item_id BIGINT NOT NULL,
+    menu_item_name VARCHAR(200) NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_price DECIMAL(10, 2) NOT NULL,
+    menu_item_image VARCHAR(500),
+    added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Orders within a session
@@ -74,7 +92,8 @@ CREATE TABLE guest.payments (
     amount DECIMAL(10, 2) NOT NULL,
     payment_method VARCHAR(20) NOT NULL,
     collected_by_staff_id BIGINT,
-    paid_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    paid_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tip DECIMAL(10, 2) DEFAULT 0.00
 );
 
 -- Indexes for common queries
@@ -82,3 +101,4 @@ CREATE INDEX idx_reservations_venue_time ON guest.reservations(venue_id, reserva
 CREATE INDEX idx_sessions_table_status ON guest.sessions(table_id, status);
 CREATE INDEX idx_orders_session ON guest.orders(session_id);
 CREATE INDEX idx_payments_session ON guest.payments(session_id);
+CREATE INDEX idx_cart_items_session ON guest.cart_items(session_id);

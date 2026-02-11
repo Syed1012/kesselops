@@ -38,23 +38,22 @@ public class HandoverController {
     public ResponseEntity<ApiResponse<HandoverResponse>> createHandover(
             @PathVariable Long shiftId,
             @Valid @RequestBody CreateHandoverRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Shift fromShift = venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
             Shift toShift = venueAccessService.getAccessibleShiftOrThrow(user, request.toShiftId());
 
             if (!fromShift.getVenueId().equals(toShift.getVenueId())) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Handover shifts must be in the same venue"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Handover shifts must be in the same venue"));
             }
 
             Handover handover = handoverService.createHandover(
                     shiftId, request.toShiftId(), user.getId(),
-                    request.summary(), request.openIssues(), request.nextSteps()
-            );
+                    request.summary(), request.openIssues(), request.nextSteps());
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toHandoverResponse(handover)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -64,12 +63,11 @@ public class HandoverController {
     @GetMapping
     public ResponseEntity<ApiResponse<HandoverResponse>> getHandover(
             @PathVariable Long shiftId,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("ACCESS_DENIED", e.getMessage()));
         }
 
         Handover handover = handoverService.getHandoverByShift(shiftId);
@@ -85,12 +83,11 @@ public class HandoverController {
     @GetMapping("/incoming")
     public ResponseEntity<ApiResponse<HandoverResponse>> getIncomingHandover(
             @PathVariable Long shiftId,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("ACCESS_DENIED", e.getMessage()));
         }
 
         Handover handover = handoverService.getIncomingHandover(shiftId);
@@ -106,19 +103,18 @@ public class HandoverController {
     @PostMapping("/acknowledge")
     public ResponseEntity<ApiResponse<HandoverResponse>> acknowledgeHandover(
             @PathVariable Long shiftId,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("ACCESS_DENIED", e.getMessage()));
         }
 
         Handover handover = handoverService.getIncomingHandover(shiftId);
         if (handover == null) {
             return ResponseEntity.notFound().build();
         }
-        
+
         Handover acknowledged = handoverService.acknowledgeHandover(handover.getId(), user.getId());
         return ResponseEntity.ok(ApiResponse.success(toHandoverResponse(acknowledged)));
     }
@@ -134,8 +130,7 @@ public class HandoverController {
                 handover.getNextSteps(),
                 handover.getAcknowledgedByUserId(),
                 handover.getAcknowledgedAt(),
-                handover.getCreatedAt()
-        );
+                handover.getCreatedAt());
     }
 
     // DTOs
@@ -143,8 +138,8 @@ public class HandoverController {
             @NotNull Long toShiftId,
             @NotBlank String summary,
             String openIssues,
-            String nextSteps
-    ) {}
+            String nextSteps) {
+    }
 
     public record HandoverResponse(
             Long id,
@@ -156,6 +151,6 @@ public class HandoverController {
             String nextSteps,
             Long acknowledgedByUserId,
             Instant acknowledgedAt,
-            Instant createdAt
-    ) {}
+            Instant createdAt) {
+    }
 }

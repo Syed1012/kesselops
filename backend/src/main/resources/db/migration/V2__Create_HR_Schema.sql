@@ -1,40 +1,11 @@
--- V1__Initial_schema.sql
--- KesselOps database schema for Auth & Operations modules
-
--- Users table
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    phone VARCHAR(50),
-    venue_id BIGINT,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Venues table
-CREATE TABLE venues (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    address TEXT NOT NULL,
-    city VARCHAR(100) NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    timezone VARCHAR(50) NOT NULL DEFAULT 'Europe/Berlin',
-    owner_id BIGINT NOT NULL REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Add foreign key for user venue after venues table exists
-ALTER TABLE users ADD CONSTRAINT fk_users_venue FOREIGN KEY (venue_id) REFERENCES venues(id);
+-- V2__Create_HR_Schema.sql
+-- HR & Operations module: Shifts, Assignments, Checklists, Handovers
 
 -- Shifts table
 CREATE TABLE shifts (
     id BIGSERIAL PRIMARY KEY,
     venue_id BIGINT NOT NULL REFERENCES venues(id),
+    user_id BIGINT, -- Added in V13 originally
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
     type VARCHAR(20) NOT NULL,
@@ -78,7 +49,7 @@ CREATE TABLE checklists (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Task items table
+-- Task items table (for checklists)
 CREATE TABLE task_items (
     id BIGSERIAL PRIMARY KEY,
     checklist_id BIGINT NOT NULL REFERENCES checklists(id) ON DELETE CASCADE,
@@ -90,10 +61,7 @@ CREATE TABLE task_items (
     completed_by_user_id BIGINT REFERENCES users(id)
 );
 
--- Indexes for performance
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_venue ON users(venue_id);
-CREATE INDEX idx_venues_owner ON venues(owner_id);
+-- Indexes
 CREATE INDEX idx_shifts_venue ON shifts(venue_id);
 CREATE INDEX idx_shifts_active ON shifts(venue_id, is_active);
 CREATE INDEX idx_assignments_shift ON shift_assignments(shift_id);

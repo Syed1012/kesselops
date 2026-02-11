@@ -202,7 +202,8 @@ export default function TasksPage() {
     });
 
     if (res.success && res.data) {
-      setTasks((prev) => [res.data, ...prev]);
+      const newTask = res.data;
+      setTasks((prev) => [newTask, ...prev]);
       setCreateModalOpen(false);
       resetForm();
       toast.success("Task created successfully");
@@ -231,8 +232,9 @@ export default function TasksPage() {
     });
 
     if (res.success && res.data) {
+      const updatedTask = res.data;
       setTasks((prev) =>
-        prev.map((t) => (t.id === selectedTask.id ? res.data : t))
+        prev.map((t) => (t.id === selectedTask!.id ? updatedTask : t))
       );
       setEditModalOpen(false);
       setSelectedTask(null);
@@ -340,8 +342,9 @@ export default function TasksPage() {
     const res = await uploadTaskPhoto(selectedTask.id, photoFile, true);
 
     if (res.success && res.data) {
+      const updated = res.data;
       setTasks((prev) =>
-        prev.map((t) => (t.id === selectedTask.id ? res.data : t))
+        prev.map((t) => (t.id === selectedTask!.id ? updated : t))
       );
       setPhotoModalOpen(false);
       setPhotoFile(null);
@@ -632,13 +635,12 @@ export default function TasksPage() {
                 >
                   {/* Column Header */}
                   <div
-                    className={`p-3 border-b border-border/50 flex items-center justify-between ${
-                      status === "TODO"
-                        ? "bg-slate-500/5"
-                        : status === "IN_PROGRESS"
+                    className={`p-3 border-b border-border/50 flex items-center justify-between ${status === "TODO"
+                      ? "bg-slate-500/5"
+                      : status === "IN_PROGRESS"
                         ? "bg-blue-500/5"
                         : "bg-green-500/5"
-                    } rounded-t-xl sticky top-0 backdrop-blur-sm z-10`}
+                      } rounded-t-xl sticky top-0 backdrop-blur-sm z-10`}
                   >
                     <div className="flex items-center gap-2">
                       <div className={`p-1 rounded-full ${cfg?.color || ""}`}>
@@ -694,11 +696,10 @@ export default function TasksPage() {
                         >
                           <div className="flex justify-between items-start gap-2">
                             <h4
-                              className={`text-sm font-medium leading-tight ${
-                                task.status.toUpperCase() === "DONE"
-                                  ? "line-through text-muted-foreground"
-                                  : ""
-                              }`}
+                              className={`text-sm font-medium leading-tight ${task.status.toUpperCase() === "DONE"
+                                ? "line-through text-muted-foreground"
+                                : ""
+                                }`}
                             >
                               {task.title}
                             </h4>
@@ -730,9 +731,8 @@ export default function TasksPage() {
                           <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                             <Badge
                               variant="outline"
-                              className={`text-[10px] h-5 gap-1 border-0 ${
-                                pCfg?.color || ""
-                              } px-1.5`}
+                              className={`text-[10px] h-5 gap-1 border-0 ${pCfg?.color || ""
+                                } px-1.5`}
                             >
                               {pCfg?.label || task.priority}
                             </Badge>

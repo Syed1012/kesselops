@@ -32,13 +32,12 @@ public class UserController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER', 'CHEF', 'STAFF', 'TRAINEE')")
     public ResponseEntity<ApiResponse<List<UserSummaryResponse>>> listUsers(
             @AuthenticationPrincipal User currentUser,
-            @RequestParam(required = false) Long venueId
-    ) {
+            @RequestParam(required = false) Long venueId) {
         try {
             List<UserSummaryResponse> users = userService.listUsers(currentUser, venueId);
             return ResponseEntity.ok(ApiResponse.success(users));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -49,13 +48,12 @@ public class UserController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<UserSummaryResponse>> getUser(
             @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser
-    ) {
+            @AuthenticationPrincipal User currentUser) {
         try {
             UserSummaryResponse user = userService.getUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(user));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -67,15 +65,13 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserSummaryResponse>> updateUser(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser,
-            @RequestBody UpdateUserRequest request
-    ) {
+            @RequestBody UpdateUserRequest request) {
         try {
             UserSummaryResponse user = userService.updateUser(
-                    id, request.firstName(), request.lastName(), request.phone(), request.role(), currentUser
-            );
+                    id, request.firstName(), request.lastName(), request.phone(), request.role(), currentUser);
             return ResponseEntity.ok(ApiResponse.success(user));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -86,13 +82,12 @@ public class UserController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deactivateUser(
             @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser
-    ) {
+            @AuthenticationPrincipal User currentUser) {
         try {
             userService.deactivateUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -103,13 +98,12 @@ public class UserController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> activateUser(
             @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser
-    ) {
+            @AuthenticationPrincipal User currentUser) {
         try {
             userService.activateUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -120,16 +114,16 @@ public class UserController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteUser(
             @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser
-    ) {
+            @AuthenticationPrincipal User currentUser) {
         try {
             userService.deleteUser(id, currentUser);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
     // DTO for update request
-    public record UpdateUserRequest(String firstName, String lastName, String phone, Role role) {}
+    public record UpdateUserRequest(String firstName, String lastName, String phone, Role role) {
+    }
 }

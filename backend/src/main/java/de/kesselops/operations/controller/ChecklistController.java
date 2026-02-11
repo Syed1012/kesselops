@@ -37,12 +37,11 @@ public class ChecklistController {
     public ResponseEntity<ApiResponse<ChecklistResponse>> createChecklist(
             @PathVariable Long shiftId,
             @Valid @RequestBody CreateChecklistRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("ACCESS_DENIED", e.getMessage()));
         }
 
         Checklist checklist = checklistService.createChecklist(shiftId, request.category(), request.title());
@@ -55,12 +54,11 @@ public class ChecklistController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<ChecklistResponse>>> listChecklists(
             @PathVariable Long shiftId,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("ACCESS_DENIED", e.getMessage()));
         }
 
         List<ChecklistResponse> checklists = checklistService.getChecklistsByShift(shiftId).stream()
@@ -76,17 +74,17 @@ public class ChecklistController {
     public ResponseEntity<ApiResponse<ChecklistDetailResponse>> getChecklist(
             @PathVariable Long shiftId,
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
             if (!venueAccessService.checklistBelongsToShift(id, shiftId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Checklist does not belong to shift"));
             }
             Checklist checklist = checklistService.getChecklist(id);
             return ResponseEntity.ok(ApiResponse.success(toChecklistDetailResponse(checklist)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -98,72 +96,77 @@ public class ChecklistController {
             @PathVariable Long shiftId,
             @PathVariable Long id,
             @AuthenticationPrincipal User user,
-            @Valid @RequestBody CreateTaskRequest request
-    ) {
+            @Valid @RequestBody CreateTaskRequest request) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
             if (!venueAccessService.checklistBelongsToShift(id, shiftId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Checklist does not belong to shift"));
             }
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("ACCESS_DENIED", e.getMessage()));
         }
 
-        TaskItem task = checklistService.addTask(id, request.description(), request.sortOrder(), request.requiresPhoto());
+        TaskItem task = checklistService.addTask(id, request.description(), request.sortOrder(),
+                request.requiresPhoto());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toTaskResponse(task)));
     }
 
     /**
-     * PATCH /api/shifts/{shiftId}/checklists/{checklistId}/tasks/{taskId}/done - Mark task done
+     * PATCH /api/shifts/{shiftId}/checklists/{checklistId}/tasks/{taskId}/done -
+     * Mark task done
      */
     @PatchMapping("/{checklistId}/tasks/{taskId}/done")
     public ResponseEntity<ApiResponse<TaskResponse>> markTaskDone(
             @PathVariable Long shiftId,
             @PathVariable Long checklistId,
             @PathVariable Long taskId,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
             if (!venueAccessService.checklistBelongsToShift(checklistId, shiftId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Checklist does not belong to shift"));
             }
             if (!venueAccessService.taskBelongsToChecklist(taskId, checklistId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Task does not belong to checklist"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Task does not belong to checklist"));
             }
 
             TaskItem task = checklistService.markTaskDone(taskId, user.getId());
             checklistService.updateChecklistCompletion(checklistId);
             return ResponseEntity.ok(ApiResponse.success(toTaskResponse(task)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
     /**
-     * PATCH /api/shifts/{shiftId}/checklists/{checklistId}/tasks/{taskId}/skip - Skip task
+     * PATCH /api/shifts/{shiftId}/checklists/{checklistId}/tasks/{taskId}/skip -
+     * Skip task
      */
     @PatchMapping("/{checklistId}/tasks/{taskId}/skip")
     public ResponseEntity<ApiResponse<TaskResponse>> skipTask(
             @PathVariable Long shiftId,
             @PathVariable Long checklistId,
             @PathVariable Long taskId,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             venueAccessService.getAccessibleShiftOrThrow(user, shiftId);
             if (!venueAccessService.checklistBelongsToShift(checklistId, shiftId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Checklist does not belong to shift"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Checklist does not belong to shift"));
             }
             if (!venueAccessService.taskBelongsToChecklist(taskId, checklistId)) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Task does not belong to checklist"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Task does not belong to checklist"));
             }
 
             TaskItem task = checklistService.skipTask(taskId);
             checklistService.updateChecklistCompletion(checklistId);
             return ResponseEntity.ok(ApiResponse.success(toTaskResponse(task)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -175,8 +178,7 @@ public class ChecklistController {
                 checklist.getTitle(),
                 checklist.getIsCompleted(),
                 checklist.getCompletionPercentage(),
-                checklist.getCreatedAt()
-        );
+                checklist.getCreatedAt());
     }
 
     private ChecklistDetailResponse toChecklistDetailResponse(Checklist checklist) {
@@ -191,8 +193,7 @@ public class ChecklistController {
                 checklist.getIsCompleted(),
                 checklist.getCompletionPercentage(),
                 checklist.getCreatedAt(),
-                tasks
-        );
+                tasks);
     }
 
     private TaskResponse toTaskResponse(TaskItem task) {
@@ -203,21 +204,20 @@ public class ChecklistController {
                 task.getSortOrder(),
                 task.getRequiresPhoto(),
                 task.getCompletedAt(),
-                task.getCompletedByUserId()
-        );
+                task.getCompletedByUserId());
     }
 
     // DTOs
     public record CreateChecklistRequest(
             @NotNull ChecklistCategory category,
-            @NotBlank String title
-    ) {}
+            @NotBlank String title) {
+    }
 
     public record CreateTaskRequest(
             @NotBlank String description,
             @NotNull Integer sortOrder,
-            boolean requiresPhoto
-    ) {}
+            boolean requiresPhoto) {
+    }
 
     public record ChecklistResponse(
             Long id,
@@ -226,8 +226,8 @@ public class ChecklistController {
             String title,
             boolean isCompleted,
             double completionPercentage,
-            Instant createdAt
-    ) {}
+            Instant createdAt) {
+    }
 
     public record ChecklistDetailResponse(
             Long id,
@@ -237,8 +237,8 @@ public class ChecklistController {
             boolean isCompleted,
             double completionPercentage,
             Instant createdAt,
-            List<TaskResponse> tasks
-    ) {}
+            List<TaskResponse> tasks) {
+    }
 
     public record TaskResponse(
             Long id,
@@ -247,6 +247,6 @@ public class ChecklistController {
             int sortOrder,
             boolean requiresPhoto,
             Instant completedAt,
-            Long completedByUserId
-    ) {}
+            Long completedByUserId) {
+    }
 }

@@ -349,9 +349,11 @@ function Header({ sidebarCollapsed }: { sidebarCollapsed: boolean }) {
 
         {/* User (Desktop) */}
         <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-border ml-2">
-          <Avatar fallback={`${currentUser.firstName[0]}${currentUser.lastName[0]}`} />
+          <Avatar>
+            <AvatarFallback>{user ? `${user.firstName[0]}${user.lastName[0]}` : "?"}</AvatarFallback>
+          </Avatar>
           <div className="hidden xl:block">
-            <p className="text-sm font-medium text-foreground">{currentUser.firstName}</p>
+            <p className="text-sm font-medium text-foreground">{user?.firstName}</p>
           </div>
         </div>
 
@@ -447,16 +449,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} user={user} onLogout={handleLogout} />
           <Header sidebarCollapsed={sidebarCollapsed} />
 
-          <main
-            className={cn(
-              "pt-16 pb-20 lg:pb-6 min-h-screen transition-all duration-300",
-              sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
-            )}
-          >
-            <div className="p-4 lg:p-6">
-              {children}
-            </div>
-          </main>
           <main
             className={cn(
               "pt-16 pb-20 lg:pb-6 min-h-screen transition-all duration-300",

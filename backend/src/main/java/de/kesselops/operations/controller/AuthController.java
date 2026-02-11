@@ -32,7 +32,7 @@ public class AuthController {
             UserSummaryResponse user = authService.register(request);
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(user));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error("CONFLICT", e.getMessage()));
         }
     }
 
@@ -45,9 +45,11 @@ public class AuthController {
             LoginResponse response = authService.login(request);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("AUTH_FAILED", e.getMessage()));
         } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("ACCOUNT_LOCKED", e.getMessage()));
         }
     }
 
@@ -60,7 +62,8 @@ public class AuthController {
             TokenPairResponse response = authService.refresh(request);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("INVALID_TOKEN", e.getMessage()));
         }
     }
 
@@ -79,7 +82,7 @@ public class AuthController {
      */
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserSummaryResponse>> getCurrentUser(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(new ApiResponse<>(true, authService.getCurrentUser(user), null));
+        return ResponseEntity.ok(ApiResponse.success(authService.getCurrentUser(user)));
     }
 
     @PostMapping("/invite")
@@ -88,9 +91,9 @@ public class AuthController {
             @Valid @RequestBody InviteRequest request,
             @AuthenticationPrincipal User user) {
         try {
-            return ResponseEntity.ok(new ApiResponse<>(true, authService.inviteUser(request, user), null));
+            return ResponseEntity.ok(ApiResponse.success(authService.inviteUser(request, user)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 }

@@ -34,11 +34,9 @@ public class VenueController {
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<ApiResponse<VenueResponse>> createVenue(
             @Valid @RequestBody CreateVenueRequest request,
-            @AuthenticationPrincipal User owner
-    ) {
+            @AuthenticationPrincipal User owner) {
         VenueService.CreateVenueRequest serviceRequest = new VenueService.CreateVenueRequest(
-                request.name(), request.address(), request.city(), request.type(), request.timezone()
-        );
+                request.name(), request.address(), request.city(), request.type(), request.timezone());
         Venue venue = venueService.createVenue(serviceRequest, owner);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toVenueResponse(venue)));
     }
@@ -60,13 +58,12 @@ public class VenueController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VenueResponse>> getVenue(
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Venue venue = venueService.getVenue(id, user);
             return ResponseEntity.ok(ApiResponse.success(toVenueResponse(venue)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -78,16 +75,14 @@ public class VenueController {
     public ResponseEntity<ApiResponse<VenueResponse>> updateVenue(
             @PathVariable Long id,
             @Valid @RequestBody CreateVenueRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             VenueService.CreateVenueRequest serviceRequest = new VenueService.CreateVenueRequest(
-                    request.name(), request.address(), request.city(), request.type(), request.timezone()
-            );
+                    request.name(), request.address(), request.city(), request.type(), request.timezone());
             Venue venue = venueService.updateVenue(id, serviceRequest, user);
             return ResponseEntity.ok(ApiResponse.success(toVenueResponse(venue)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -99,8 +94,7 @@ public class VenueController {
                 venue.getCity(),
                 venue.getType(),
                 venue.getTimezone(),
-                venue.getCreatedAt()
-        );
+                venue.getCreatedAt());
     }
 
     // DTOs
@@ -109,8 +103,8 @@ public class VenueController {
             @NotBlank String address,
             @NotBlank String city,
             @NotBlank String type,
-            String timezone
-    ) {}
+            String timezone) {
+    }
 
     public record VenueResponse(
             Long id,
@@ -119,6 +113,6 @@ public class VenueController {
             String city,
             String type,
             String timezone,
-            java.time.Instant createdAt
-    ) {}
+            java.time.Instant createdAt) {
+    }
 }

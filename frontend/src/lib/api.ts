@@ -1,980 +1,275 @@
 /**
- * Guest Service API Client
- * Type-safe API client for frontend-backend communication
+ * KesselOps API Client
+ * Consolidated type-safe API client for both Guest and Staff operations.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-// ============================================
-// TYPES
-// ============================================
-
-export interface Session {
-    id: number;
-    tableId: number;
-    venueId: number;
-    reservationId: number | null;
-    assignedStaffId: number | null;
-    verifiedByStaffId: number | null;
-    status: 'ACTIVE' | 'CLOSED';
-    startedAt: string;
-    closedAt: string | null;
-    sessionCode?: string;
-}
-
-export interface Order {
-    id: number;
-    sessionId: number;
-    status: 'PENDING' | 'KITCHEN' | 'READY' | 'SERVED';
-    totalAmount: number;
-    items: OrderItem[];
-    createdAt: string;
-}
-
-export interface OrderItem {
-    id: number;
-    menuItemId: number;
-    quantity: number;
-    unitPrice: number;
-    lineTotal: number;
-}
-
-export interface Payment {
-    id: number;
-    sessionId: number;
-    amount: number;
-    paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
-    collectedByStaffId: number | null;
-    paidAt: string;
-    tip?: number;
-}
-
-export interface Reservation {
-    id: number;
-    guestId: number | null;
-    venueId: number;
-    partySize: number;
-    reservationTime: string;
-    status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'COMPLETED' | 'CANCELLED';
-    createdAt: string;
-}
-
-export interface CartItem {
-    id: number;
-    sessionId: number;
-    menuItemId: number;
-    menuItemName: string;
-    quantity: number;
-    unitPrice: number;
-    menuItemImage?: string;
-    addedAt: string;
-}
 
 // ============================================
-// REQUEST TYPES
+// BASE TYPES
 // ============================================
 
-export interface CreateOrderRequest {
-    items: Array<{
-        menuItemId: number;
-        quantity: number;
-        unitPrice: number;
-    }>;
+export interface ErrorDetails {
+  code: string;
+  message: string;
+  field?: string;
 }
 
-export interface CreatePaymentRequest {
-    amount: number;
-    paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
-    collectedByStaffId?: number;
-    tip?: number;
-}
-
-export interface CreateReservationRequest {
-    venueId: number;
-    guestId?: number;
-    guestName?: string;
-    guestEmail?: string;
-    guestPhone?: string;
-    guestNotes?: string;
-    partySize: number;
-    reservationTime: string;
-}
-
-
-// ============================================
-// API FUNCTIONS
-// ============================================
-
-/**
- * Start a session via QR scan.
- * @param tableId The table ID
- * @param code Optional session code (required if joining an existing active session)
- */
-export async function startSession(tableId: number, code?: string | null): Promise<Session> {
-    const url = code
-        ? `${API_BASE}/api/tables/${tableId}/sessions/start?code=${code}`
-        : `${API_BASE}/api/tables/${tableId}/sessions/start`;
-
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!res.ok) {
-        if (res.status === 403 || res.status === 401) {
-            throw new Error('AUTH_REQUIRED');
-        }
-        throw new Error('Failed to start session');
-    }
-
-    return res.json();
-}
-
-/**
- * Check if a table has an active session.
- */
-export async function checkActiveSession(tableId: number): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}/active-status`);
-    if (res.ok) {
-        return res.json();
-    }
-    return false;
-}
-
-// ============================================
-// MENU ITEM FUNCTIONS
-// ============================================
-
-/**
- * Get all available menu items for a venue (non-paginated).
- * Uses: GET /api/menu-items/available?venueId=X
- * Returns: ApiResponse<MenuItem[]> -> unwrap data
- */
-export async function getAvailableMenuItems(venueId: number): Promise<MenuItem[]> {
-    const res = await fetch(`${API_BASE}/api/menu-items/available?venueId=${venueId}`);
-    if (!res.ok) {
-        throw new Error('Failed to fetch menu items');
-    }
-    const json = await res.json();
-    return json.data || [];
-}
-
-/**
- * Get menu items with optional category filter and search (paginated).
- * Uses: GET /api/menu-items?venueId=X&category=Y&search=Z&size=100
- * Returns: PagedResponse<MenuItem> -> unwrap data.content
- */
-export async function getMenuItems(
-    venueId: number,
-    options?: { category?: MenuCategory; search?: string; page?: number; size?: number }
-): Promise<{ items: MenuItem[]; totalElements: number; totalPages: number }> {
-    const params = new URLSearchParams();
-    params.set('venueId', String(venueId));
-    params.set('size', String(options?.size || 50));
-    params.set('page', String(options?.page || 0));
-    if (options?.category) params.set('category', options.category);
-    if (options?.search) params.set('search', options.search);
-
-    const res = await fetch(`${API_BASE}/api/menu-items?${params.toString()}`);
-    if (!res.ok) {
-        throw new Error('Failed to fetch menu items');
-    }
-    const json = await res.json();
-    return {
-        items: json.data?.content || [],
-        totalElements: json.data?.totalElements || 0,
-        totalPages: json.data?.totalPages || 0,
-    };
-}
-
-// ============================================
-// AI FUNCTIONS
-// ============================================
-
-export interface AIChatMessage {
-    role: 'user' | 'assistant';
-    content: string;
-}
-
-export interface AIChatResponse {
-    reply: string;
-    model: string;
-}
-
-export interface AIRecommendation {
-    item: MenuItem;
-    reason: string;
-}
-
-export interface AIRecommendationResponse {
-    recommendations: AIRecommendation[];
-    reasoning: string;
-}
-
-/**
- * Send a chat message to the AI menu assistant.
- */
-export async function aiChat(
-    message: string,
-    history: AIChatMessage[],
-    venueId: number = 1,
-    sessionId?: number
-): Promise<AIChatResponse> {
-    const res = await fetch(`${API_BASE}/api/ai/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            message,
-            history,
-            venueId,
-            sessionId: sessionId || null,
-        }),
-    });
-    if (!res.ok) {
-        throw new Error('AI chat request failed');
-    }
-    const json = await res.json();
-    return json.data;
-}
-
-/**
- * Get AI-powered menu recommendations.
- */
-export async function aiRecommendations(
-    venueId: number = 1,
-    cartItemNames?: string[],
-    preferences?: string
-): Promise<AIRecommendationResponse> {
-    const res = await fetch(`${API_BASE}/api/ai/recommendations?venueId=${venueId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            cartItemNames: cartItemNames || [],
-            preferences: preferences || '',
-        }),
-    });
-    if (!res.ok) {
-        throw new Error('AI recommendations request failed');
-    }
-    const json = await res.json();
-    return json.data;
-}
-
-/**
- * Get session details by ID.
- */
-export async function getSession(sessionId: number): Promise<Session> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
-
-    if (!res.ok) {
-        throw new Error('Session not found');
-    }
-
-    return res.json();
-}
-
-/**
- * Find active session by code.
- */
-export async function findSessionByCode(code: string): Promise<Session> {
-    const res = await fetch(`${API_BASE}/api/sessions/search?code=${code}`);
-
-    if (!res.ok) {
-        throw new Error('Session not found');
-    }
-
-    return res.json();
-}
-
-/**
- * Create an order for a session.
- */
-export async function createOrder(sessionId: number, request: CreateOrderRequest): Promise<Order> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to create order');
-    }
-
-    return res.json();
-}
-
-/**
- * Get all orders for a session.
- */
-export async function getSessionOrders(sessionId: number): Promise<Order[]> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/orders`);
-
-    if (!res.ok) {
-        throw new Error('Failed to fetch orders');
-    }
-
-    return res.json();
-}
-
-/**
- * Update order status (for staff use).
- */
-export async function updateOrderStatus(
-    orderId: number,
-    status: Order['status']
-): Promise<Order> {
-    const res = await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to update order status');
-    }
-
-    return res.json();
-}
-
-/**
- * Create a payment for a session.
- */
-export async function createPayment(
-    sessionId: number,
-    request: CreatePaymentRequest
-): Promise<Payment> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/payments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to create payment');
-    }
-
-    return res.json();
-}
-
-/**
- * Get all payments for a session.
- */
-export async function getSessionPayments(sessionId: number): Promise<Payment[]> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/payments`);
-
-    if (!res.ok) {
-        throw new Error('Failed to fetch payments');
-    }
-
-    return res.json();
-}
-
-/**
- * Create a reservation.
- */
-export async function createReservation(request: CreateReservationRequest): Promise<Reservation> {
-    const res = await fetch(`${API_BASE}/api/reservations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-    });
-
-    if (!res.ok) {
-        let errorMessage = 'Failed to create reservation';
-        try {
-            const errorData = await res.json();
-            if (errorData?.error?.message) {
-                errorMessage = errorData.error.message;
-            } else if (typeof errorData?.error === 'string') {
-                errorMessage = errorData.error;
-            }
-        } catch (e) {
-            // Ignore JSON parse error, use default message
-        }
-        throw new Error(errorMessage);
-    }
-
-    return res.json();
-}
-
-/**
- * Get reservations by venue and date.
- */
-export async function getReservations(venueId: number, date: string): Promise<Reservation[]> {
-    const res = await fetch(`${API_BASE}/api/reservations?venueId=${venueId}&date=${date}`);
-
-    if (!res.ok) {
-        throw new Error('Failed to fetch reservations');
-    }
-
-    return res.json();
-}
-
-// ============================================
-// CART API FUNCTIONS
-// ============================================
-
-/**
- * Get all cart items for a session.
- */
-export async function getSessionCart(sessionId: number): Promise<CartItem[]> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/cart`);
-
-    if (!res.ok) {
-        throw new Error('Failed to fetch cart');
-    }
-
-    return res.json();
-}
-
-/**
- * Add item to cart.
- */
-export async function addToCart(
-    sessionId: number,
-    menuItemId: number,
-    menuItemName: string,
-    unitPrice: number,
-    menuItemImage?: string
-): Promise<CartItem> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/cart`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            menuItemId,
-            menuItemName,
-            unitPrice,
-            menuItemImage,
-        }),
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to add to cart');
-    }
-
-    return res.json();
-}
-
-/**
- * Update cart item quantity.
- */
-export async function updateCartItemQuantity(
-    cartItemId: number,
-    quantity: number
-): Promise<CartItem> {
-    const res = await fetch(`${API_BASE}/api/cart/${cartItemId}?quantity=${quantity}`, {
-        method: 'PATCH',
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to update cart item');
-    }
-
-    return res.json();
-}
-
-/**
- * Remove item from cart.
- */
-export async function removeFromCart(cartItemId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/cart/${cartItemId}`, {
-        method: 'DELETE',
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to remove from cart');
-    }
-}
-
-/**
- * Clear entire cart for a session.
- */
-export async function clearCart(sessionId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/cart`, {
-        method: 'DELETE',
-    });
-
-    if (!res.ok) {
-        throw new Error('Failed to clear cart');
-    }
-}
-/**
- * API Client for KesselOps Backend
- * Provides typed access to inventory and menu endpoints
- */
-
-
-// Types for API responses
 export interface ApiResponse<T> {
-    success: boolean;
-    data: T;
-    message?: string;
-    timestamp: string;
+  success: boolean;
+  data: T | null;
+  message?: string;
+  error?: string;
+  errorDetails?: ErrorDetails;
+  timestamp?: string;
 }
 
 export interface PagedResponse<T> {
-    content: T[];
-    page: number;
-    size: number;
-    totalElements: number;
-    totalPages: number;
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first?: boolean;
+  last?: boolean;
 }
 
-// Inventory Types
+// ============================================
+// GUEST ENGINE TYPES
+// ============================================
+
+export interface Session {
+  id: number;
+  tableId: number;
+  venueId: number;
+  reservationId: number | null;
+  assignedStaffId: number | null;
+  verifiedByStaffId: number | null;
+  status: 'ACTIVE' | 'CLOSED';
+  startedAt: string;
+  closedAt: string | null;
+  sessionCode?: string;
+}
+
+export interface Order {
+  id: number;
+  sessionId: number;
+  status: 'PENDING' | 'KITCHEN' | 'READY' | 'SERVED';
+  totalAmount: number;
+  items: OrderItem[];
+  createdAt: string;
+}
+
+export interface OrderItem {
+  id: number;
+  menuItemId: number;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface Payment {
+  id: number;
+  sessionId: number;
+  amount: number;
+  paymentMethod: 'CASH' | 'CARD' | 'MOBILE_PAY';
+  collectedByStaffId: number | null;
+  paidAt: string;
+  tip?: number;
+}
+
+export interface Reservation {
+  id: number;
+  guestId: number | null;
+  venueId: number;
+  partySize: number;
+  reservationTime: string;
+  status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'COMPLETED' | 'CANCELLED';
+  createdAt: string;
+}
+
+export interface CartItem {
+  id: number;
+  sessionId: number;
+  menuItemId: number;
+  menuItemName: string;
+  quantity: number;
+  unitPrice: number;
+  menuItemImage?: string;
+  addedAt: string;
+}
+
+// ============================================
+// INVENTORY & MENU TYPES
+// ============================================
+
 export interface InventoryItem {
-    id: number;
-    name: string;
-    sku: string;
-    description: string | null;
-    unit: string;
-    quantityOnHand: number;
-    reorderLevel: number | null;
-    reorderQuantity: number | null;
-    unitCost: number | null;
-    venueId: number;
-    supplierId: number | null;
-    supplierName: string | null;
-    active: boolean;
-    lowStock: boolean;
-    createdAt: string;
-    updatedAt: string;
+  id: number;
+  name: string;
+  sku: string;
+  description: string | null;
+  unit: string;
+  quantityOnHand: number;
+  reorderLevel: number | null;
+  reorderQuantity: number | null;
+  unitCost: number | null;
+  venueId: number;
+  supplierId: number | null;
+  supplierName: string | null;
+  active: boolean;
+  lowStock: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InventoryItemRequest {
-    name: string;
-    sku: string;
-    description?: string;
-    unit: string;
-    quantityOnHand: number;
-    reorderLevel?: number;
-    reorderQuantity?: number;
-    unitCost?: number;
-    venueId: number;
-    supplierId?: number;
+  name: string;
+  sku: string;
+  description?: string;
+  unit: string;
+  quantityOnHand: number;
+  reorderLevel?: number;
+  reorderQuantity?: number;
+  unitCost?: number;
+  venueId: number;
+  supplierId?: number;
 }
 
-// Supplier Types
 export interface Supplier {
-    id: number;
-    name: string;
-    contactPerson: string | null;
-    email: string | null;
-    phone: string | null;
-    address: string | null;
-    notes: string | null;
-    active: boolean;
-    createdAt: string;
-    updatedAt: string;
+  id: number;
+  name: string;
+  contactPerson: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// MenuItem Types
 export type MenuCategory =
-    | "COCKTAIL" | "BEER" | "WINE" | "SPIRIT"
-    | "SOFT_DRINK" | "HOT_DRINK" | "FOOD"
-    | "DESSERT" | "SNACK" | "OTHER";
+  | "COCKTAIL" | "BEER" | "WINE" | "SPIRIT"
+  | "SOFT_DRINK" | "HOT_DRINK" | "FOOD"
+  | "DESSERT" | "SNACK" | "OTHER";
 
 export interface MenuItem {
-    id: number;
-    name: string;
-    description: string | null;
-    category: MenuCategory;
-    price: number;
-    cost: number;
-    profitMargin: number;
-    venueId: number;
-    available: boolean;
-    active: boolean;
-    imageUrl: string | null;
-    hasRecipe: boolean;
-    createdAt: string;
-    updatedAt: string;
+  id: number;
+  name: string;
+  description: string | null;
+  category: MenuCategory;
+  price: number;
+  cost: number;
+  profitMargin: number;
+  venueId: number;
+  available: boolean;
+  active: boolean;
+  imageUrl: string | null;
+  hasRecipe: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MenuItemRequest {
-    name: string;
-    description?: string;
-    category: MenuCategory;
-    price: number;
-    cost?: number;
-    venueId: number;
+  name: string;
+  description?: string;
+  category: MenuCategory;
+  price: number;
+  cost?: number;
+  venueId: number;
 }
 
-// Menu Types
 export type MenuType =
-    | "DRINKS" | "FOOD" | "HAPPY_HOUR" | "BRUNCH"
-    | "COCKTAILS" | "WINE" | "BEER" | "SPECIALS";
+  | "DRINKS" | "FOOD" | "HAPPY_HOUR" | "BRUNCH"
+  | "COCKTAILS" | "WINE" | "BEER" | "SPECIALS";
+
+export interface MenuRequest {
+  name: string;
+  description?: string;
+  type: MenuType;
+  venueId: number;
+  displayOrder?: number;
+}
 
 export type SyndicationTarget =
-    | "SPEISEKARTE_DE" | "GOOGLE_BUSINESS" | "TRIPADVISOR"
-    | "UBER_EATS" | "LIEFERANDO" | "WOLT";
+  | "SPEISEKARTE_DE" | "GOOGLE_BUSINESS" | "TRIPADVISOR"
+  | "UBER_EATS" | "LIEFERANDO" | "WOLT";
 
 export type SyndicationStatus =
-    | "PENDING" | "IN_PROGRESS" | "SUCCESS" | "FAILED" | "DISABLED";
+  | "PENDING" | "IN_PROGRESS" | "SUCCESS" | "FAILED" | "DISABLED";
 
 export interface MenuSyndication {
-    id: number;
-    menuId: number;
-    target: SyndicationTarget;
-    targetDisplayName: string;
-    status: SyndicationStatus;
-    enabled: boolean;
-    externalId: string | null;
-    externalUrl: string | null;
-    lastSyncAt: string | null;
-    lastError: string | null;
+  id: number;
+  menuId: number;
+  target: SyndicationTarget;
+  targetDisplayName: string;
+  status: SyndicationStatus;
+  enabled: boolean;
+  externalId: string | null;
+  externalUrl: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
 }
 
 export interface Menu {
-    id: number;
-    name: string;
-    description: string | null;
-    type: MenuType;
-    venueId: number;
-    active: boolean;
-    displayOrder: number;
-    itemCount: number;
-    items: MenuItem[] | null;
-    syndications: MenuSyndication[];
-    createdAt: string;
-    updatedAt: string;
+  id: number;
+  name: string;
+  description: string | null;
+  type: MenuType;
+  venueId: number;
+  active: boolean;
+  displayOrder: number;
+  itemCount: number;
+  items: MenuItem[] | null;
+  syndications: MenuSyndication[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface MenuRequest {
-    name: string;
-    description?: string;
-    type: MenuType;
-    venueId: number;
-    displayOrder?: number;
-}
-
-// Purchase Order Types
 export type PurchaseOrderStatus =
-    | "DRAFT" | "PENDING" | "APPROVED" | "ORDERED" | "RECEIVED" | "CANCELLED";
+  | "DRAFT" | "PENDING" | "APPROVED" | "ORDERED" | "RECEIVED" | "CANCELLED";
 
 export interface PurchaseOrderLineRequest {
-    inventoryItemId: number;
-    quantity: number;
-    unitCost?: number;
+  inventoryItemId: number;
+  quantity: number;
+  unitCost?: number;
 }
 
 export interface PurchaseOrderRequest {
-    venueId: number;
-    supplierId?: number;
-    notes?: string;
-    lines: PurchaseOrderLineRequest[];
+  venueId: number;
+  supplierId?: number;
+  notes?: string;
+  lines: PurchaseOrderLineRequest[];
 }
 
 export interface PurchaseOrderLineResponse {
-    id: number;
-    inventoryItemId: number;
-    inventoryItemName: string;
-    inventoryItemSku: string;
-    unit: string;
-    quantity: number;
-    unitCost: number;
-    lineTotal: number;
+  id: number;
+  inventoryItemId: number;
+  inventoryItemName: string;
+  inventoryItemSku: string;
+  unit: string;
+  quantity: number;
+  unitCost: number;
+  lineTotal: number;
 }
 
 export interface PurchaseOrderResponse {
-    id: number;
-    venueId: number;
-    supplierId: number | null;
-    supplierName: string | null;
-    status: PurchaseOrderStatus;
-    notes: string | null;
-    totalAmount: number;
-    lines: PurchaseOrderLineResponse[];
-    createdAt: string;
-    updatedAt: string;
+  id: number;
+  venueId: number;
+  supplierId: number | null;
+  supplierName: string | null;
+  status: PurchaseOrderStatus;
+  notes: string | null;
+  totalAmount: number;
+  lines: PurchaseOrderLineResponse[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-// API Error class
-export class ApiError extends Error {
-    constructor(
-        public status: number,
-        message: string,
-        public details?: unknown
-    ) {
-        super(message);
-        this.name = "ApiError";
-    }
-}
+// ============================================
+// OPERATIONS TYPES
+// ============================================
 
-// Fetch wrapper with error handling
-async function fetchApi<T>(
-    endpoint: string,
-    options?: RequestInit
-): Promise<T> {
-    const url = `${API_BASE}${endpoint}`;
-
-    const response = await fetch(url, {
-        headers: {
-            "Content-Type": "application/json",
-            ...options?.headers,
-        },
-        ...options,
-    });
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new ApiError(
-            response.status,
-            `API Error: ${response.statusText}`,
-            errorBody
-        );
-    }
-
-    return response.json();
-}
-
-// ==================== Inventory API ====================
-
-export const inventoryApi = {
-    list: async (venueId: number, page = 0, size = 20, search?: string) => {
-        const params = new URLSearchParams({
-            venueId: venueId.toString(),
-            page: page.toString(),
-            size: size.toString(),
-        });
-        if (search) params.set("search", search);
-
-        const res = await fetchApi<ApiResponse<PagedResponse<InventoryItem>>>(`/api/inventory-items?${params}`);
-        return res.data;
-    },
-
-    getById: async (id: number) => {
-        const res = await fetchApi<ApiResponse<InventoryItem>>(`/api/inventory-items/${id}`);
-        return res.data;
-    },
-
-    create: async (item: InventoryItemRequest) => {
-        const res = await fetchApi<ApiResponse<InventoryItem>>("/api/inventory-items", {
-            method: "POST",
-            body: JSON.stringify(item),
-        });
-        return res.data;
-    },
-
-    update: async (id: number, item: InventoryItemRequest) => {
-        const res = await fetchApi<ApiResponse<InventoryItem>>(`/api/inventory-items/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(item),
-        });
-        return res.data;
-    },
-
-    deactivate: async (id: number) => {
-        await fetchApi<ApiResponse<void>>(`/api/inventory-items/${id}`, {
-            method: "DELETE",
-        });
-    },
-
-    getLowStock: async (venueId: number) => {
-        const res = await fetchApi<ApiResponse<InventoryItem[]>>(`/api/inventory-items/low-stock?venueId=${venueId}`);
-        return res.data;
-    },
-};
-
-// ==================== Supplier API ====================
-
-export const supplierApi = {
-    list: async (page = 0, size = 20, search?: string) => {
-        const params = new URLSearchParams({
-            page: page.toString(),
-            size: size.toString(),
-        });
-        if (search) params.set("search", search);
-
-        return fetchApi<ApiResponse<PagedResponse<Supplier>>>(`/api/suppliers?${params}`);
-    },
-
-    getById: async (id: number) => {
-        const res = await fetchApi<ApiResponse<Supplier>>(`/api/suppliers/${id}`);
-        return res.data;
-    },
-
-    create: async (supplier: Omit<Supplier, "id" | "createdAt" | "updatedAt" | "active">) => {
-        const res = await fetchApi<ApiResponse<Supplier>>("/api/suppliers", {
-            method: "POST",
-            body: JSON.stringify(supplier),
-        });
-        return res.data;
-    },
-};
-
-// ==================== MenuItem API ====================
-
-export const menuItemApi = {
-    list: async (venueId: number, category?: MenuCategory) => {
-        const params = new URLSearchParams({ venueId: venueId.toString() });
-        if (category) params.set("category", category);
-
-        const res = await fetchApi<ApiResponse<PagedResponse<MenuItem>>>(`/api/menu-items?${params}`);
-        return res.data?.content ?? [];
-    },
-
-    getById: async (id: number) => {
-        const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}`);
-        return res.data;
-    },
-
-    create: async (item: MenuItemRequest) => {
-        const res = await fetchApi<ApiResponse<MenuItem>>("/api/menu-items", {
-            method: "POST",
-            body: JSON.stringify(item),
-        });
-        return res.data;
-    },
-
-    update: async (id: number, item: MenuItemRequest) => {
-        const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(item),
-        });
-        return res.data;
-    },
-
-    toggleAvailability: async (id: number, available: boolean) => {
-        const res = await fetchApi<ApiResponse<MenuItem>>(`/api/menu-items/${id}/availability?available=${available}`, {
-            method: "PATCH",
-        });
-        return res.data;
-    },
-
-    deactivate: async (id: number) => {
-        await fetchApi<ApiResponse<void>>(`/api/menu-items/${id}`, {
-            method: "DELETE",
-        });
-    },
-};
-
-// ==================== Menu API ====================
-
-export const menuApi = {
-    list: async (venueId: number, type?: MenuType) => {
-        const params = new URLSearchParams({ venueId: venueId.toString() });
-        if (type) params.set("type", type);
-
-        const res = await fetchApi<ApiResponse<Menu[]>>(`/api/menus?${params}`);
-        return res.data;
-    },
-
-    getById: async (id: number, includeItems = false) => {
-        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${id}?includeItems=${includeItems}`);
-        return res.data;
-    },
-
-    create: async (menu: MenuRequest) => {
-        const res = await fetchApi<ApiResponse<Menu>>("/api/menus", {
-            method: "POST",
-            body: JSON.stringify(menu),
-        });
-        return res.data;
-    },
-
-    update: async (id: number, menu: MenuRequest) => {
-        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(menu),
-        });
-        return res.data;
-    },
-
-    deactivate: async (id: number) => {
-        await fetchApi<ApiResponse<void>>(`/api/menus/${id}`, {
-            method: "DELETE",
-        });
-    },
-
-    addItem: async (menuId: number, menuItemId: number) => {
-        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/items/${menuItemId}`, {
-            method: "POST",
-        });
-        return res.data;
-    },
-
-    removeItem: async (menuId: number, menuItemId: number) => {
-        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/items/${menuItemId}`, {
-            method: "DELETE",
-        });
-        return res.data;
-    },
-
-    addSyndication: async (menuId: number, target: SyndicationTarget, enabled: boolean, configJson?: string) => {
-        const res = await fetchApi<ApiResponse<Menu>>(`/api/menus/${menuId}/syndications`, {
-            method: "POST",
-            body: JSON.stringify({ target, enabled, configJson }),
-        });
-        return res.data;
-    },
-
-    toggleSyndication: async (menuId: number, syndicationId: number, enabled: boolean) => {
-        await fetchApi<ApiResponse<void>>(`/api/menus/${menuId}/syndications/${syndicationId}?enabled=${enabled}`, {
-            method: "PATCH",
-        });
-    },
-
-    removeSyndication: async (menuId: number, syndicationId: number) => {
-        await fetchApi<ApiResponse<void>>(`/api/menus/${menuId}/syndications/${syndicationId}`, {
-            method: "DELETE",
-        });
-    },
-};
-
-// ==================== Purchase Order API ====================
-
-export const purchaseOrderApi = {
-    create: async (order: PurchaseOrderRequest) => {
-        const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>("/api/purchase-orders", {
-            method: "POST",
-            body: JSON.stringify(order),
-        });
-        return res.data;
-    },
-
-    list: async (venueId: number, page = 0, size = 20, status?: PurchaseOrderStatus) => {
-        const params = new URLSearchParams({
-            venueId: venueId.toString(),
-            page: page.toString(),
-            size: size.toString(),
-        });
-        if (status) params.set("status", status);
-
-        const res = await fetchApi<ApiResponse<PagedResponse<PurchaseOrderResponse>>>(`/api/purchase-orders?${params}`);
-        return res.data;
-    },
-
-    getById: async (id: number) => {
-        const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>(`/api/purchase-orders/${id}`);
-        return res.data;
-    },
-
-    updateStatus: async (id: number, status: PurchaseOrderStatus) => {
-        const res = await fetchApi<ApiResponse<PurchaseOrderResponse>>(`/api/purchase-orders/${id}/status?status=${status}`, {
-            method: "PATCH",
-        });
-        return res.data;
-    },
-
-    cancel: async (id: number) => {
-        await fetchApi<ApiResponse<void>>(`/api/purchase-orders/${id}`, {
-            method: "DELETE",
-        });
-    },
-};
-
-// Export default object for convenience
-const api = {
-    inventory: inventoryApi,
-    supplier: supplierApi,
-    menuItem: menuItemApi,
-    menu: menuApi,
-    purchaseOrder: purchaseOrderApi,
-};
-
-export default api;
-// API Service for KesselOps Backend
-
-// Types
 export interface User {
   id: number;
   firstName: string;
@@ -983,20 +278,8 @@ export interface User {
   role: 'OWNER' | 'MANAGER' | 'CHEF' | 'STAFF' | 'TRAINEE';
   venueId: number | null;
   isActive: boolean;
+  phone?: string;
   createdAt: string;
-}
-
-export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  user: User;
-}
-
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
 }
 
 export interface Venue {
@@ -1022,13 +305,108 @@ export interface Shift {
   createdAt: string;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T | null;
-  error: string | null;
+export type ChecklistCategory = 'OPENING' | 'CLOSING' | 'CLEANING' | 'INVENTORY' | 'OTHER';
+
+export interface Checklist {
+  id: number;
+  shiftId: number;
+  category: ChecklistCategory;
+  title: string;
+  isCompleted: boolean;
+  completionPercentage: number;
+  createdAt: string;
 }
 
-// Token management
+export interface TaskItem {
+  id: number;
+  description: string;
+  status: 'NOT_DONE' | 'DONE' | 'SKIPPED';
+  sortOrder: number;
+  requiresPhoto: boolean;
+  completedAt: string | null;
+  completedByUserId: number | null;
+}
+
+export interface ChecklistDetail extends Checklist {
+  tasks: TaskItem[];
+}
+
+// Renamed from KanbanTask to Task to match UI expectations, while keeping description handling robust.
+export interface Task {
+  id: number;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  category: string;
+  requiresPhoto: boolean;
+  photoUrl: string | null;
+  assigneeId: number | null;
+  assigneeName: string | null;
+  dueDate: string | null;
+  venueId: number;
+  createdByUserId: number;
+  createdFromTemplate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type KanbanTask = Task; // Alias for backward compatibility
+
+export interface Handover {
+  id: number;
+  fromShiftId: number;
+  toShiftId: number | null;
+  authorUserId: number;
+  summary: string;
+  openIssues: string | null;
+  nextSteps: string | null;
+  acknowledgedByUserId: number | null;
+  acknowledgedAt: string | null;
+  createdAt: string;
+}
+
+// ============================================
+// AUTH & AI TYPES
+// ============================================
+
+export interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  user: User;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+export interface AIChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AIChatResponse {
+  reply: string;
+  model: string;
+}
+
+export interface AIRecommendation {
+  item: MenuItem;
+  reason: string;
+}
+
+export interface AIRecommendationResponse {
+  recommendations: AIRecommendation[];
+  reasoning: string;
+}
+
+// ============================================
+// TOKEN MANAGEMENT
+// ============================================
+
 const TOKEN_KEY = 'kesselops_access_token';
 const REFRESH_TOKEN_KEY = 'kesselops_refresh_token';
 
@@ -1054,8 +432,11 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-// Fetch wrapper with auth
-async function fetchApi<T>(
+// ============================================
+// FETCH WRAPPER
+// ============================================
+
+async function fetchAuthApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
@@ -1070,41 +451,48 @@ async function fetchApi<T>(
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
+  const fullEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${API_BASE}${fullEndpoint}`, {
       ...options,
       headers,
     });
 
     if (response.status === 401) {
-      // Try to refresh token
       const refreshed = await refreshToken();
       if (refreshed) {
-        // Retry with new token
         const newToken = getStoredToken();
         (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
-        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+        const retryResponse = await fetch(`${API_BASE}${fullEndpoint}`, {
           ...options,
           headers,
         });
-        return retryResponse.json();
+        return processJsonResponse<T>(retryResponse);
       } else {
         clearTokens();
-        window.location.href = '/login';
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
         return { success: false, data: null, error: 'Session expired' };
       }
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      const errorMessage = typeof errorData.error === 'string'
+        ? errorData.error
+        : (errorData.error?.message || `HTTP ${response.status}`);
+
       return {
         success: false,
         data: null,
-        error: errorData.error || `HTTP ${response.status}`
+        error: errorMessage,
+        errorDetails: typeof errorData.error === 'object' ? errorData.error : undefined
       };
     }
 
-    return response.json();
+    return processJsonResponse<T>(response);
   } catch (error) {
     console.error('API Error:', error);
     return {
@@ -1115,9 +503,37 @@ async function fetchApi<T>(
   }
 }
 
-// Auth API
+async function processJsonResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const json = await response.json();
+
+  // Handle sanitization for Task types to ensure description is never null
+  if (json.data) {
+    if (Array.isArray(json.data)) {
+      json.data = json.data.map((item: any) => sanitizeTask(item));
+    } else {
+      json.data = sanitizeTask(json.data);
+    }
+  }
+
+  return json;
+}
+
+function sanitizeTask(item: any): any {
+  if (item && typeof item === 'object' && ('title' in item || 'priority' in item)) {
+    return {
+      ...item,
+      description: item.description || ""
+    };
+  }
+  return item;
+}
+
+// ============================================
+// AUTH API
+// ============================================
+
 export async function login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
-  const response = await fetchApi<LoginResponse>('/auth/login', {
+  const response = await fetchAuthApi<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
@@ -1136,7 +552,7 @@ export async function register(data: {
   password: string;
   phone?: string;
 }): Promise<ApiResponse<User>> {
-  return fetchApi<User>('/auth/register', {
+  return fetchAuthApi<User>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -1147,7 +563,7 @@ export async function refreshToken(): Promise<boolean> {
   if (!refreshTokenValue) return false;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: refreshTokenValue }),
@@ -1172,7 +588,7 @@ export async function logout(): Promise<void> {
 
   if (refreshTokenValue && token) {
     try {
-      await fetch(`${API_BASE_URL}/auth/logout`, {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1188,109 +604,488 @@ export async function logout(): Promise<void> {
 }
 
 export async function getCurrentUser(): Promise<ApiResponse<User>> {
-  return fetchApi<User>('/auth/me');
+  return fetchAuthApi<User>('/auth/me');
 }
 
-// User API
+// ============================================
+// GUEST API
+// ============================================
+
+export async function startSession(tableId: number, code?: string | null): Promise<Session> {
+  const params = code ? `?code=${code}` : '';
+  const res = await fetchAuthApi<Session>(`/tables/${tableId}/sessions/start${params}`, {
+    method: 'POST'
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'Failed to start session');
+  return res.data;
+}
+
+export async function checkActiveSession(tableId: number): Promise<boolean> {
+  const res = await fetchAuthApi<boolean>(`/tables/${tableId}/active-status`);
+  return res.data || false;
+}
+
+export async function getSession(sessionId: number): Promise<Session> {
+  const res = await fetchAuthApi<Session>(`/sessions/${sessionId}`);
+  if (!res.success || !res.data) throw new Error(res.error || 'Session not found');
+  return res.data;
+}
+
+export async function findSessionByCode(code: string): Promise<Session> {
+  const res = await fetchAuthApi<Session>(`/sessions/search?code=${code}`);
+  if (!res.success || !res.data) throw new Error(res.error || 'Session not found');
+  return res.data;
+}
+
+export async function createOrder(sessionId: number, request: any): Promise<Order> {
+  const res = await fetchAuthApi<Order>(`/sessions/${sessionId}/orders`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'Failed to create order');
+  return res.data;
+}
+
+export async function getSessionOrders(sessionId: number): Promise<Order[]> {
+  const res = await fetchAuthApi<Order[]>(`/sessions/${sessionId}/orders`);
+  return res.data || [];
+}
+
+export async function createPayment(sessionId: number, request: any): Promise<Payment> {
+  const res = await fetchAuthApi<Payment>(`/sessions/${sessionId}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'Failed to create payment');
+  return res.data;
+}
+
+export async function getSessionPayments(sessionId: number): Promise<Payment[]> {
+  const res = await fetchAuthApi<Payment[]>(`/sessions/${sessionId}/payments`);
+  return res.data || [];
+}
+
+export async function createReservation(request: any): Promise<Reservation> {
+  const res = await fetchAuthApi<Reservation>('/reservations', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'Failed to create reservation');
+  return res.data;
+}
+
+export async function getReservations(venueId: number, date: string): Promise<Reservation[]> {
+  const res = await fetchAuthApi<Reservation[]>(`/reservations?venueId=${venueId}&date=${date}`);
+  return res.data || [];
+}
+
+// ============================================
+// CART API
+// ============================================
+
+export async function getSessionCart(sessionId: number): Promise<CartItem[]> {
+  const res = await fetchAuthApi<CartItem[]>(`/sessions/${sessionId}/cart`);
+  return res.data || [];
+}
+
+export async function addToCart(sessionId: number, menuItemId: number, menuItemName: string, unitPrice: number, menuItemImage?: string): Promise<CartItem> {
+  const res = await fetchAuthApi<CartItem>(`/sessions/${sessionId}/cart`, {
+    method: 'POST',
+    body: JSON.stringify({ menuItemId, menuItemName, unitPrice, menuItemImage }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'Failed to add to cart');
+  return res.data;
+}
+
+export async function updateCartItemQuantity(cartItemId: number, quantity: number): Promise<CartItem> {
+  const res = await fetchAuthApi<CartItem>(`/cart/${cartItemId}?quantity=${quantity}`, {
+    method: 'PATCH',
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'Failed to update cart');
+  return res.data;
+}
+
+export async function removeFromCart(cartItemId: number): Promise<void> {
+  const res = await fetchAuthApi<void>(`/cart/${cartItemId}`, {
+    method: 'DELETE',
+  });
+  if (!res.success) throw new Error(res.error || 'Failed to remove from cart');
+}
+
+export async function clearCart(sessionId: number): Promise<void> {
+  const res = await fetchAuthApi<void>(`/sessions/${sessionId}/cart`, {
+    method: 'DELETE',
+  });
+  if (!res.success) throw new Error(res.error || 'Failed to clear cart');
+}
+
+// ============================================
+// AI API
+// ============================================
+
+export async function aiChat(message: string, history: AIChatMessage[], venueId: number = 1, sessionId?: number): Promise<AIChatResponse> {
+  const res = await fetchAuthApi<AIChatResponse>('/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, history, venueId, sessionId: sessionId || null }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'AI chat failed');
+  return res.data;
+}
+
+export async function aiRecommendations(venueId: number = 1, cartItemNames?: string[], preferences?: string): Promise<AIRecommendationResponse> {
+  const res = await fetchAuthApi<AIRecommendationResponse>(`/ai/recommendations?venueId=${venueId}`, {
+    method: 'POST',
+    body: JSON.stringify({ cartItemNames: cartItemNames || [], preferences: preferences || '' }),
+  });
+  if (!res.success || !res.data) throw new Error(res.error || 'AI recommendations failed');
+  return res.data;
+}
+
+// ============================================
+// INVENTORY API
+// ============================================
+
+const DEFAULT_PAGED_RESPONSE = { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 };
+
+export const inventoryApi = {
+  list: async (venueId: number, page = 0, size = 20, search?: string): Promise<PagedResponse<InventoryItem>> => {
+    const params = new URLSearchParams({ venueId: venueId.toString(), page: page.toString(), size: size.toString() });
+    if (search) params.set("search", search);
+    const res = await fetchAuthApi<PagedResponse<InventoryItem>>(`/inventory-items?${params}`);
+    return res.data || DEFAULT_PAGED_RESPONSE;
+  },
+  getById: async (id: number): Promise<InventoryItem> => {
+    const res = await fetchAuthApi<InventoryItem>(`/inventory-items/${id}`);
+    if (!res.success || !res.data) throw new Error(res.error || "Inventory item not found");
+    return res.data;
+  },
+  create: async (item: InventoryItemRequest): Promise<InventoryItem> => {
+    const res = await fetchAuthApi<InventoryItem>("/inventory-items", {
+      method: "POST",
+      body: JSON.stringify(item),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to create inventory item");
+    return res.data;
+  },
+  update: async (id: number, item: InventoryItemRequest): Promise<InventoryItem> => {
+    const res = await fetchAuthApi<InventoryItem>(`/inventory-items/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(item),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to update inventory item");
+    return res.data;
+  },
+  deactivate: async (id: number): Promise<void> => {
+    const res = await fetchAuthApi<void>(`/inventory-items/${id}`, { method: "DELETE" });
+    if (!res.success) throw new Error(res.error || "Failed to deactivate inventory item");
+  },
+  getLowStock: async (venueId: number): Promise<InventoryItem[]> => {
+    const res = await fetchAuthApi<InventoryItem[]>(`/inventory-items/low-stock?venueId=${venueId}`);
+    return res.data || [];
+  },
+};
+
+// ============================================
+// SUPPLIER API
+// ============================================
+
+export const supplierApi = {
+  list: async (page = 0, size = 20, search?: string): Promise<PagedResponse<Supplier>> => {
+    const params = new URLSearchParams({ page: page.toString(), size: size.toString() });
+    if (search) params.set("search", search);
+    const res = await fetchAuthApi<PagedResponse<Supplier>>(`/suppliers?${params}`);
+    return res.data || DEFAULT_PAGED_RESPONSE;
+  },
+  getById: async (id: number): Promise<Supplier> => {
+    const res = await fetchAuthApi<Supplier>(`/suppliers/${id}`);
+    if (!res.success || !res.data) throw new Error(res.error || "Supplier not found");
+    return res.data;
+  },
+  create: async (supplier: any): Promise<Supplier> => {
+    const res = await fetchAuthApi<Supplier>("/suppliers", {
+      method: "POST",
+      body: JSON.stringify(supplier),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to create supplier");
+    return res.data;
+  },
+};
+
+// ============================================
+// MENU ITEM API
+// ============================================
+
+export const menuItemApi = {
+  list: async (venueId: number, category?: MenuCategory): Promise<MenuItem[]> => {
+    const params = new URLSearchParams({ venueId: venueId.toString() });
+    if (category) params.set("category", category);
+    const res = await fetchAuthApi<PagedResponse<MenuItem>>(`/menu-items?${params}`);
+    return res.data?.content ?? [];
+  },
+  getById: async (id: number): Promise<MenuItem> => {
+    const res = await fetchAuthApi<MenuItem>(`/menu-items/${id}`);
+    if (!res.success || !res.data) throw new Error(res.error || "Menu item not found");
+    return res.data;
+  },
+  create: async (item: MenuItemRequest): Promise<MenuItem> => {
+    const res = await fetchAuthApi<MenuItem>("/menu-items", {
+      method: "POST",
+      body: JSON.stringify(item),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to create menu item");
+    return res.data;
+  },
+  update: async (id: number, item: MenuItemRequest): Promise<MenuItem> => {
+    const res = await fetchAuthApi<MenuItem>(`/menu-items/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(item),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to update menu item");
+    return res.data;
+  },
+  toggleAvailability: async (id: number, available: boolean): Promise<MenuItem> => {
+    const res = await fetchAuthApi<MenuItem>(`/menu-items/${id}/availability?available=${available}`, {
+      method: "PATCH",
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to toggle availability");
+    return res.data;
+  },
+  deactivate: async (id: number): Promise<void> => {
+    const res = await fetchAuthApi<void>(`/menu-items/${id}`, { method: "DELETE" });
+    if (!res.success) throw new Error(res.error || "Failed to deactivate menu item");
+  },
+};
+
+export async function getAvailableMenuItems(venueId: number): Promise<MenuItem[]> {
+  const res = await fetchAuthApi<MenuItem[]>(`/menu-items/available?venueId=${venueId}`);
+  return res.data || [];
+}
+
+export async function getMenuItems(venueId: number, options?: any): Promise<any> {
+  const params = new URLSearchParams();
+  params.set('venueId', String(venueId));
+  params.set('size', String(options?.size || 50));
+  params.set('page', String(options?.page || 0));
+  if (options?.category) params.set('category', options.category);
+  if (options?.search) params.set('search', options.search);
+
+  const res = await fetchAuthApi<PagedResponse<MenuItem>>(`/menu-items?${params.toString()}`);
+  return {
+    items: res.data?.content || [],
+    totalElements: res.data?.totalElements || 0,
+    totalPages: res.data?.totalPages || 0,
+  };
+}
+
+// ============================================
+// MENU API
+// ============================================
+
+export const menuApi = {
+  list: async (venueId: number, type?: MenuType): Promise<Menu[]> => {
+    const params = new URLSearchParams({ venueId: venueId.toString() });
+    if (type) params.set("type", type);
+    const res = await fetchAuthApi<Menu[]>(`/menus?${params}`);
+    return res.data || [];
+  },
+  getById: async (id: number, includeItems = false): Promise<Menu> => {
+    const res = await fetchAuthApi<Menu>(`/menus/${id}?includeItems=${includeItems}`);
+    if (!res.success || !res.data) throw new Error(res.error || "Menu not found");
+    return res.data;
+  },
+  create: async (menu: MenuRequest): Promise<Menu> => {
+    const res = await fetchAuthApi<Menu>("/menus", {
+      method: "POST",
+      body: JSON.stringify(menu),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to create menu");
+    return res.data;
+  },
+  update: async (id: number, menu: MenuRequest): Promise<Menu> => {
+    const res = await fetchAuthApi<Menu>(`/menus/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(menu),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to update menu");
+    return res.data;
+  },
+  deactivate: async (id: number): Promise<void> => {
+    const res = await fetchAuthApi<void>(`/menus/${id}`, { method: "DELETE" });
+    if (!res.success) throw new Error(res.error || "Failed to deactivate menu");
+  },
+  addItem: async (menuId: number, menuItemId: number): Promise<Menu> => {
+    const res = await fetchAuthApi<Menu>(`/menus/${menuId}/items/${menuItemId}`, { method: "POST" });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to add item to menu");
+    return res.data;
+  },
+  removeItem: async (menuId: number, menuItemId: number): Promise<Menu> => {
+    const res = await fetchAuthApi<Menu>(`/menus/${menuId}/items/${menuItemId}`, { method: "DELETE" });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to remove item from menu");
+    return res.data;
+  },
+  addSyndication: async (menuId: number, target: SyndicationTarget, enabled: boolean, configJson?: string): Promise<Menu> => {
+    const res = await fetchAuthApi<Menu>(`/menus/${menuId}/syndications`, {
+      method: "POST",
+      body: JSON.stringify({ target, enabled, configJson }),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to add syndication");
+    return res.data;
+  },
+  toggleSyndication: async (menuId: number, syndicationId: number, enabled: boolean): Promise<void> => {
+    const res = await fetchAuthApi<void>(`/menus/${menuId}/syndications/${syndicationId}?enabled=${enabled}`, { method: "PATCH" });
+    if (!res.success) throw new Error(res.error || "Failed to toggle syndication");
+  },
+  removeSyndication: async (menuId: number, syndicationId: number): Promise<void> => {
+    const res = await fetchAuthApi<void>(`/menus/${menuId}/syndications/${syndicationId}`, { method: "DELETE" });
+    if (!res.success) throw new Error(res.error || "Failed to remove syndication");
+  },
+};
+
+// ============================================
+// PURCHASE ORDER API
+// ============================================
+
+export const purchaseOrderApi = {
+  create: async (order: PurchaseOrderRequest): Promise<PurchaseOrderResponse> => {
+    const res = await fetchAuthApi<PurchaseOrderResponse>("/purchase-orders", {
+      method: "POST",
+      body: JSON.stringify(order),
+    });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to create purchase order");
+    return res.data;
+  },
+  list: async (venueId: number, page = 0, size = 20, status?: PurchaseOrderStatus): Promise<PagedResponse<PurchaseOrderResponse>> => {
+    const params = new URLSearchParams({ venueId: venueId.toString(), page: page.toString(), size: size.toString() });
+    if (status) params.set("status", status);
+    const res = await fetchAuthApi<PagedResponse<PurchaseOrderResponse>>(`/purchase-orders?${params}`);
+    return res.data || DEFAULT_PAGED_RESPONSE;
+  },
+  getById: async (id: number): Promise<PurchaseOrderResponse> => {
+    const res = await fetchAuthApi<PurchaseOrderResponse>(`/purchase-orders/${id}`);
+    if (!res.success || !res.data) throw new Error(res.error || "Purchase order not found");
+    return res.data;
+  },
+  updateStatus: async (id: number, status: PurchaseOrderStatus): Promise<PurchaseOrderResponse> => {
+    const res = await fetchAuthApi<PurchaseOrderResponse>(`/purchase-orders/${id}/status?status=${status}`, { method: "PATCH" });
+    if (!res.success || !res.data) throw new Error(res.error || "Failed to update status");
+    return res.data;
+  },
+  cancel: async (id: number): Promise<void> => {
+    const res = await fetchAuthApi<void>(`/purchase-orders/${id}`, { method: "DELETE" });
+    if (!res.success) throw new Error(res.error || "Failed to cancel order");
+  },
+};
+
+// ============================================
+// USER API
+// ============================================
+
 export async function getUsers(venueId?: number): Promise<ApiResponse<User[]>> {
   const query = venueId ? `?venueId=${venueId}` : '';
-  return fetchApi<User[]>(`/users${query}`);
+  return fetchAuthApi<User[]>(`/users${query}`);
 }
 
 export async function getUser(id: number): Promise<ApiResponse<User>> {
-  return fetchApi<User>(`/users/${id}`);
+  return fetchAuthApi<User>(`/users/${id}`);
 }
 
-// Venue API
-export async function getVenues(): Promise<ApiResponse<Venue[]>> {
-  return fetchApi<Venue[]>('/venues');
-}
-
-export async function getVenue(id: number): Promise<ApiResponse<Venue>> {
-  return fetchApi<Venue>(`/venues/${id}`);
-}
-
-export async function createVenue(data: {
-  name: string;
-  address: string;
-  city: string;
-  type: string;
-  timezone?: string;
-}): Promise<ApiResponse<Venue>> {
-  return fetchApi<Venue>('/venues', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updateVenue(id: number, data: {
-  name: string;
-  address: string;
-  city: string;
-  type: string;
-  timezone?: string;
-}): Promise<ApiResponse<Venue>> {
-  return fetchApi<Venue>(`/venues/${id}`, {
+export async function updateUser(id: number, data: any): Promise<ApiResponse<User>> {
+  return fetchAuthApi<User>(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
 }
 
-// Shift API
-export async function getShifts(
-  venueId: number,
-  from?: string,
-  to?: string
-): Promise<ApiResponse<{ content: Shift[] }>> {
+export async function activateUser(id: number): Promise<ApiResponse<void>> {
+  return fetchAuthApi<void>(`/users/${id}/activate`, { method: 'PATCH' });
+}
+
+export async function deactivateUser(id: number): Promise<ApiResponse<void>> {
+  return fetchAuthApi<void>(`/users/${id}/deactivate`, { method: 'PATCH' });
+}
+
+export async function deleteUser(id: number): Promise<ApiResponse<void>> {
+  return fetchAuthApi<void>(`/users/${id}`, { method: 'DELETE' });
+}
+
+// ============================================
+// VENUE API
+// ============================================
+
+export async function getVenues(): Promise<ApiResponse<Venue[]>> {
+  return fetchAuthApi<Venue[]>('/venues');
+}
+
+export async function getVenue(id: number): Promise<ApiResponse<Venue>> {
+  return fetchAuthApi<Venue>(`/venues/${id}`);
+}
+
+export async function createVenue(data: any): Promise<ApiResponse<Venue>> {
+  return fetchAuthApi<Venue>('/venues', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateVenue(id: number, data: any): Promise<ApiResponse<Venue>> {
+  return fetchAuthApi<Venue>(`/venues/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// ============================================
+// SHIFT API
+// ============================================
+
+export async function getShifts(venueId: number, from?: string, to?: string): Promise<ApiResponse<PagedResponse<Shift>>> {
   let query = `venueId=${venueId}`;
   if (from) query += `&from=${encodeURIComponent(from)}`;
   if (to) query += `&to=${encodeURIComponent(to)}`;
-  return fetchApi<{ content: Shift[] }>(`/shifts?${query}`);
+  return fetchAuthApi<PagedResponse<Shift>>(`/shifts?${query}`);
 }
 
 export async function getShift(id: number): Promise<ApiResponse<Shift>> {
-  return fetchApi<Shift>(`/shifts/${id}`);
+  return fetchAuthApi<Shift>(`/shifts/${id}`);
 }
 
-export async function createShift(data: {
-  venueId: number;
-  userId?: number;
-  startTime: string;
-  endTime: string;
-  type: string;
-  notes?: string;
-}): Promise<ApiResponse<Shift>> {
-  return fetchApi<Shift>('/shifts', {
+export async function createShift(data: any): Promise<ApiResponse<Shift>> {
+  return fetchAuthApi<Shift>('/shifts', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
 export async function deleteShift(id: number): Promise<ApiResponse<void>> {
-  return fetchApi<void>(`/shifts/${id}`, { method: 'DELETE' });
+  return fetchAuthApi<void>(`/shifts/${id}`, { method: 'DELETE' });
 }
 
-export async function updateShift(id: number, data: {
-  startTime?: string;
-  endTime?: string;
-  type?: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
-  notes?: string;
-}): Promise<ApiResponse<Shift>> {
-  return fetchApi<Shift>(`/shifts/${id}`, {
+export async function updateShift(id: number, data: any): Promise<ApiResponse<Shift>> {
+  return fetchAuthApi<Shift>(`/shifts/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
 }
 
 export async function startShift(id: number): Promise<ApiResponse<Shift>> {
-  return fetchApi<Shift>(`/shifts/${id}/start`, { method: 'POST' });
+  return fetchAuthApi<Shift>(`/shifts/${id}/start`, { method: 'POST' });
 }
 
 export async function endShift(id: number): Promise<ApiResponse<Shift>> {
-  return fetchApi<Shift>(`/shifts/${id}/end`, { method: 'POST' });
+  return fetchAuthApi<Shift>(`/shifts/${id}/end`, { method: 'POST' });
 }
 
-// Invite API
+// ============================================
+// INVITE API
+// ============================================
+
+export async function inviteUser(data: InviteRequest): Promise<ApiResponse<InviteResponse>> {
+  return fetchAuthApi<InviteResponse>('/auth/invite', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export interface InviteRequest {
   firstName: string;
   lastName: string;
@@ -1304,73 +1099,46 @@ export interface InviteResponse {
   user: User;
 }
 
-export async function inviteUser(data: InviteRequest): Promise<ApiResponse<InviteResponse>> {
-  return fetchApi<InviteResponse>('/auth/invite', {
+// ============================================
+// TASK API
+// ============================================
+
+export async function getTasks(venueId: number, status?: string, category?: string): Promise<ApiResponse<Task[]>> {
+  const params = new URLSearchParams({ venueId: venueId.toString() });
+  if (status) params.set('status', status);
+  if (category) params.set('category', category);
+  return fetchAuthApi<Task[]>(`/tasks?${params}`);
+}
+
+export async function createTask(data: any): Promise<ApiResponse<Task>> {
+  return fetchAuthApi<Task>('/tasks', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function deleteUser(id: number): Promise<ApiResponse<void>> {
-  return fetchApi<void>(`/users/${id}`, { method: 'DELETE' });
-}
-
-// ─── Task API ─────────────────────────────────────────────
-
-export async function getTasks(venueId: number): Promise<ApiResponse<any[]>> {
-  return fetchApi<any[]>(`/tasks?venueId=${venueId}`);
-}
-
-export async function createTask(data: {
-  title: string;
-  description?: string;
-  priority: string;
-  category: string;
-  requiresPhoto?: boolean;
-  assigneeId?: number | null;
-  dueDate?: string;
-  venueId: number;
-}): Promise<ApiResponse<any>> {
-  return fetchApi<any>('/tasks', {
+export async function createTasksBatch(data: any): Promise<ApiResponse<Task[]>> {
+  return fetchAuthApi<Task[]>('/tasks/batch', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function createTasksBatch(data: {
-  venueId: number;
-  templateName: string;
-  tasks: { title: string; description: string; priority: string; category: string; requiresPhoto: boolean }[];
-}): Promise<ApiResponse<any[]>> {
-  return fetchApi<any[]>('/tasks/batch', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updateTask(id: number, data: {
-  title: string;
-  description?: string;
-  priority: string;
-  category: string;
-  requiresPhoto?: boolean;
-  assigneeId?: number | null;
-  dueDate?: string;
-}): Promise<ApiResponse<any>> {
-  return fetchApi<any>(`/tasks/${id}`, {
+export async function updateTask(id: number, data: any): Promise<ApiResponse<Task>> {
+  return fetchAuthApi<Task>(`/tasks/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateTaskStatus(id: number, status: string): Promise<ApiResponse<any>> {
-  return fetchApi<any>(`/tasks/${id}/status`, {
+export async function updateTaskStatus(id: number, status: string): Promise<ApiResponse<Task>> {
+  return fetchAuthApi<Task>(`/tasks/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
 }
 
-export async function uploadTaskPhoto(id: number, file: File, markDone: boolean = true): Promise<ApiResponse<any>> {
+export async function uploadTaskPhoto(id: number, file: File, markDone: boolean = true): Promise<ApiResponse<Task>> {
   const token = getStoredToken();
   const formData = new FormData();
   formData.append('file', file);
@@ -1382,21 +1150,18 @@ export async function uploadTaskPhoto(id: number, file: File, markDone: boolean 
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(
-      `${API_BASE_URL}/tasks/${id}/photo`,
-      {
-        method: 'POST',
-        headers,
-        body: formData,
-      }
-    );
+    const response = await fetch(`${API_BASE}/api/tasks/${id}/photo`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      return { success: false, data: null, error: errorData.error || `HTTP ${response.status}` };
+      return { success: false, data: null, error: errorData.error?.message || `HTTP ${response.status}` };
     }
 
-    return response.json();
+    return processJsonResponse<Task>(response);
   } catch (error) {
     console.error('Upload Error:', error);
     return { success: false, data: null, error: error instanceof Error ? error.message : 'Upload failed' };
@@ -1404,45 +1169,159 @@ export async function uploadTaskPhoto(id: number, file: File, markDone: boolean 
 }
 
 export async function deleteTask(id: number): Promise<ApiResponse<void>> {
-  return fetchApi<void>(`/tasks/${id}`, { method: 'DELETE' });
+  return fetchAuthApi<void>(`/tasks/${id}`, { method: 'DELETE' });
 }
 
-// ─── Handover API ─────────────────────────────────────────
+// ============================================
+// CHECKLIST API
+// ============================================
 
-export interface Handover {
-  id: number;
-  fromShiftId: number;
-  toShiftId: number | null;
-  authorUserId: number;
-  summary: string;
-  openIssues: string | null;
-  nextSteps: string | null;
-  acknowledgedByUserId: number | null;
-  acknowledgedAt: string | null;
-  createdAt: string;
+export async function createChecklist(shiftId: number, data: { category: string; title: string }): Promise<ApiResponse<Checklist>> {
+  return fetchAuthApi<Checklist>(`/shifts/${shiftId}/checklists`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
 }
 
-export async function createHandover(shiftId: number, data: {
-  toShiftId: number;
-  summary: string;
-  openIssues?: string;
-  nextSteps?: string;
-}): Promise<ApiResponse<Handover>> {
-  return fetchApi<Handover>(`/shifts/${shiftId}/handover`, {
+export async function getChecklists(shiftId: number): Promise<ApiResponse<Checklist[]>> {
+  return fetchAuthApi<Checklist[]>(`/shifts/${shiftId}/checklists`);
+}
+
+export async function getChecklist(shiftId: number, checklistId: number): Promise<ApiResponse<ChecklistDetail>> {
+  return fetchAuthApi<ChecklistDetail>(`/shifts/${shiftId}/checklists/${checklistId}`);
+}
+
+export async function addChecklistTask(shiftId: number, checklistId: number, data: { description: string; sortOrder: number; requiresPhoto: boolean }): Promise<ApiResponse<TaskItem>> {
+  return fetchAuthApi<TaskItem>(`/shifts/${shiftId}/checklists/${checklistId}/tasks`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function markChecklistTaskDone(shiftId: number, checklistId: number, taskId: number): Promise<ApiResponse<TaskItem>> {
+  return fetchAuthApi<TaskItem>(`/shifts/${shiftId}/checklists/${checklistId}/tasks/${taskId}/done`, {
+    method: 'PATCH'
+  });
+}
+
+export async function skipChecklistTask(shiftId: number, checklistId: number, taskId: number): Promise<ApiResponse<TaskItem>> {
+  return fetchAuthApi<TaskItem>(`/shifts/${shiftId}/checklists/${checklistId}/tasks/${taskId}/skip`, {
+    method: 'PATCH'
+  });
+}
+
+// ============================================
+// HANDOVER API
+// ============================================
+
+export async function createHandover(shiftId: number, data: any): Promise<ApiResponse<Handover>> {
+  return fetchAuthApi<Handover>(`/shifts/${shiftId}/handover`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
 export async function getOutgoingHandover(shiftId: number): Promise<ApiResponse<Handover>> {
-  return fetchApi<Handover>(`/shifts/${shiftId}/handover`);
+  return fetchAuthApi<Handover>(`/shifts/${shiftId}/handover`);
 }
 
 export async function getIncomingHandover(shiftId: number): Promise<ApiResponse<Handover>> {
-  return fetchApi<Handover>(`/shifts/${shiftId}/handover/incoming`);
+  return fetchAuthApi<Handover>(`/shifts/${shiftId}/handover/incoming`);
 }
 
 export async function acknowledgeHandover(shiftId: number): Promise<ApiResponse<Handover>> {
-  // The backend acknowledges the *incoming* handover for this shift
-  return fetchApi<Handover>(`/shifts/${shiftId}/handover/acknowledge`, { method: 'POST' });
+  return fetchAuthApi<Handover>(`/shifts/${shiftId}/handover/acknowledge`, { method: 'POST' });
 }
+
+// ============================================
+// EXPORT CONVENIENCE OBJECT
+// ============================================
+
+const api = {
+  inventory: inventoryApi,
+  supplier: supplierApi,
+  menuItem: menuItemApi,
+  menu: menuApi,
+  purchaseOrder: purchaseOrderApi,
+  auth: {
+    login,
+    register,
+    logout,
+    refresh: refreshToken,
+    me: getCurrentUser
+  },
+  guest: {
+    startSession,
+    checkActiveSession,
+    getSession,
+    findSessionByCode,
+    createOrder,
+    getSessionOrders,
+    createPayment,
+    getSessionPayments,
+    createReservation,
+    getReservations,
+    cart: {
+      get: getSessionCart,
+      add: addToCart,
+      update: updateCartItemQuantity,
+      remove: removeFromCart,
+      clear: clearCart
+    },
+    ai: {
+      chat: aiChat,
+      recommendations: aiRecommendations
+    }
+  },
+  ops: {
+    users: {
+      list: getUsers,
+      get: getUser,
+      update: updateUser,
+      activate: activateUser,
+      deactivate: deactivateUser,
+      delete: deleteUser,
+      invite: inviteUser
+    },
+    venues: {
+      list: getVenues,
+      get: getVenue,
+      create: createVenue,
+      update: updateVenue
+    },
+    shifts: {
+      list: getShifts,
+      get: getShift,
+      create: createShift,
+      update: updateShift,
+      delete: deleteShift,
+      start: startShift,
+      end: endShift
+    },
+    tasks: {
+      list: getTasks,
+      create: createTask,
+      batch: createTasksBatch,
+      update: updateTask,
+      status: updateTaskStatus,
+      photo: uploadTaskPhoto,
+      delete: deleteTask
+    },
+    checklists: {
+      create: createChecklist,
+      list: getChecklists,
+      get: getChecklist,
+      addTask: addChecklistTask,
+      markDone: markChecklistTaskDone,
+      skip: skipChecklistTask
+    },
+    handovers: {
+      create: createHandover,
+      outgoing: getOutgoingHandover,
+      incoming: getIncomingHandover,
+      acknowledge: acknowledgeHandover
+    }
+  }
+};
+
+export default api;

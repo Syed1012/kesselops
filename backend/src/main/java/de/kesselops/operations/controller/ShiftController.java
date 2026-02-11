@@ -41,24 +41,24 @@ public class ShiftController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<ShiftResponse>> createShift(
             @Valid @RequestBody CreateShiftRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         if (!venueAccessService.canAccessVenue(user, request.venueId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Access denied to venue"));
+                    .body(ApiResponse.error("ACCESS_DENIED", "Access denied to venue"));
         }
         if (!venueAccessService.userBelongsToVenue(request.userId(), request.venueId())) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Assigned user does not belong to this venue"));
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_REQUEST", "Assigned user does not belong to this venue"));
         }
 
         try {
             ShiftService.CreateShiftRequest serviceRequest = new ShiftService.CreateShiftRequest(
-                    request.venueId(), request.userId(), request.startTime(), request.endTime(), request.type(), request.notes()
-            );
+                    request.venueId(), request.userId(), request.startTime(), request.endTime(), request.type(),
+                    request.notes());
             Shift shift = shiftService.createShift(serviceRequest);
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toShiftResponse(shift)));
         } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error("CONFLICT", e.getMessage()));
         }
     }
 
@@ -71,11 +71,10 @@ public class ShiftController {
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
             @AuthenticationPrincipal User user,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         if (!venueAccessService.canAccessVenue(user, venueId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Access denied to venue"));
+                    .body(ApiResponse.error("ACCESS_DENIED", "Access denied to venue"));
         }
 
         Page<ShiftResponse> shifts = shiftService.listShifts(venueId, from, to, pageable)
@@ -89,17 +88,16 @@ public class ShiftController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ShiftResponse>> getShift(
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Shift shift = shiftService.getShift(id);
             if (!venueAccessService.canAccessVenue(user, shift.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to shift"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to shift"));
             }
             return ResponseEntity.ok(ApiResponse.success(toShiftResponse(shift)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -111,21 +109,19 @@ public class ShiftController {
     public ResponseEntity<ApiResponse<ShiftResponse>> updateShift(
             @PathVariable Long id,
             @RequestBody UpdateShiftRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Shift existing = shiftService.getShift(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to shift"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to shift"));
             }
             ShiftService.UpdateShiftRequest serviceRequest = new ShiftService.UpdateShiftRequest(
-                    request.startTime(), request.endTime(), request.type(), request.notes()
-            );
+                    request.startTime(), request.endTime(), request.type(), request.notes());
             Shift shift = shiftService.updateShift(id, serviceRequest);
             return ResponseEntity.ok(ApiResponse.success(toShiftResponse(shift)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -136,18 +132,17 @@ public class ShiftController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<ShiftResponse>> startShift(
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Shift existing = shiftService.getShift(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to shift"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to shift"));
             }
             Shift shift = shiftService.startShift(id);
             return ResponseEntity.ok(ApiResponse.success(toShiftResponse(shift)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -158,18 +153,17 @@ public class ShiftController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<ShiftResponse>> endShift(
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Shift existing = shiftService.getShift(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to shift"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to shift"));
             }
             Shift shift = shiftService.endShift(id);
             return ResponseEntity.ok(ApiResponse.success(toShiftResponse(shift)));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -180,18 +174,17 @@ public class ShiftController {
     @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteShift(
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Shift existing = shiftService.getShift(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to shift"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to shift"));
             }
             shiftService.deleteShift(id);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -206,8 +199,7 @@ public class ShiftController {
                 shift.getNotes(),
                 shift.getIsActive(),
                 shift.getDurationHours(),
-                shift.getCreatedAt()
-        );
+                shift.getCreatedAt());
     }
 
     // DTOs
@@ -217,15 +209,15 @@ public class ShiftController {
             @NotNull Instant startTime,
             @NotNull Instant endTime,
             @NotNull ShiftType type,
-            String notes
-    ) {}
+            String notes) {
+    }
 
     public record UpdateShiftRequest(
             Instant startTime,
             Instant endTime,
             ShiftType type,
-            String notes
-    ) {}
+            String notes) {
+    }
 
     public record ShiftResponse(
             Long id,
@@ -237,8 +229,8 @@ public class ShiftController {
             String notes,
             boolean isActive,
             double durationHours,
-            Instant createdAt
-    ) {}
+            Instant createdAt) {
+    }
 
     public record PageResponse<T>(
             List<T> content,
@@ -247,8 +239,7 @@ public class ShiftController {
             long totalElements,
             int totalPages,
             boolean first,
-            boolean last
-    ) {
+            boolean last) {
         public static <T> PageResponse<T> from(Page<T> page) {
             return new PageResponse<>(
                     page.getContent(),
@@ -257,8 +248,7 @@ public class ShiftController {
                     page.getTotalElements(),
                     page.getTotalPages(),
                     page.isFirst(),
-                    page.isLast()
-            );
+                    page.isLast());
         }
     }
 }

@@ -1,9 +1,23 @@
--- V10: Add image_url column to menu_items and seed initial menu data
+-- V7__Seed_Data_And_Pricing.sql
+-- Seed initial data for development and testing
 
-ALTER TABLE menu_items ADD COLUMN image_url VARCHAR(500);
+-- Seed Tables for Venue ID 1 (Midnight Lounge)
+INSERT INTO guest.tables (venue_id, table_number, capacity, is_active) VALUES
+(1, 'T1', 2, TRUE),
+(1, 'T2', 2, TRUE),
+(1, 'T3', 4, TRUE),
+(1, 'T4', 4, TRUE),
+(1, 'T5', 6, TRUE),
+(1, 'T6', 6, TRUE),
+(1, 'T7', 8, FALSE), -- Maintenance
+(1, 'BAR-1', 1, TRUE),
+(1, 'BAR-2', 1, TRUE),
+(1, 'BAR-3', 1, TRUE),
+(1, 'BAR-4', 1, TRUE),
+(1, 'VIP-1', 10, TRUE),
+(1, 'VIP-2', 12, TRUE);
 
 -- Seed menu items for Venue 1 (Midnight Lounge)
-
 INSERT INTO menu_items (name, description, category, price, cost, venue_id, available, is_active, image_url) VALUES
 -- Cocktails
 ('Smoked Old Fashioned', 'Bourbon, maple syrup, angostura bitters, hickory smoke.', 'COCKTAIL', 14.00, 4.50, 1, TRUE, TRUE, 'https://images.unsplash.com/photo-1536935338788-843bb528a346?q=80&w=1000&auto=format&fit=crop'),

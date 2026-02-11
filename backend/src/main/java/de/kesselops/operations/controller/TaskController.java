@@ -45,14 +45,14 @@ public class TaskController {
             boolean requiresPhoto,
             Long assigneeId,
             String dueDate,
-            @NotNull Long venueId
-    ) {}
+            @NotNull Long venueId) {
+    }
 
     public record BatchCreateRequest(
             @NotNull Long venueId,
             @NotBlank String templateName,
-            @NotNull List<TaskService.TaskTemplateItem> tasks
-    ) {}
+            @NotNull List<TaskService.TaskTemplateItem> tasks) {
+    }
 
     public record UpdateTaskRequest(
             @NotBlank String title,
@@ -61,12 +61,12 @@ public class TaskController {
             @NotNull String category,
             boolean requiresPhoto,
             Long assigneeId,
-            String dueDate
-    ) {}
+            String dueDate) {
+    }
 
     public record UpdateStatusRequest(
-            @NotNull String status
-    ) {}
+            @NotNull String status) {
+    }
 
     public record TaskResponse(
             Long id,
@@ -84,8 +84,8 @@ public class TaskController {
             Long createdByUserId,
             String createdFromTemplate,
             String createdAt,
-            String updatedAt
-    ) {}
+            String updatedAt) {
+    }
 
     // ─── Endpoints ──────────────────────────────────────────
 
@@ -97,11 +97,10 @@ public class TaskController {
             @RequestParam Long venueId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String category,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         if (!venueAccessService.canAccessVenue(user, venueId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Access denied to venue"));
+                    .body(ApiResponse.error("ACCESS_DENIED", "Access denied to venue"));
         }
 
         try {
@@ -115,7 +114,7 @@ public class TaskController {
             List<TaskResponse> response = tasks.stream().map(this::toResponse).toList();
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", e.getMessage()));
         }
     }
 
@@ -125,14 +124,14 @@ public class TaskController {
     @PostMapping
     public ResponseEntity<ApiResponse<TaskResponse>> createTask(
             @Valid @RequestBody CreateTaskRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         if (!venueAccessService.canAccessVenue(user, request.venueId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Access denied to venue"));
+                    .body(ApiResponse.error("ACCESS_DENIED", "Access denied to venue"));
         }
         if (!venueAccessService.userBelongsToVenue(request.assigneeId(), request.venueId())) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Assignee does not belong to this venue"));
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("INVALID_REQUEST", "Assignee does not belong to this venue"));
         }
 
         LocalDate dueDate = request.dueDate() != null ? LocalDate.parse(request.dueDate()) : LocalDate.now();
@@ -145,8 +144,7 @@ public class TaskController {
                 request.assigneeId(),
                 dueDate,
                 request.venueId(),
-                user.getId()
-        );
+                user.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(toResponse(task)));
     }
 
@@ -156,19 +154,17 @@ public class TaskController {
     @PostMapping("/batch")
     public ResponseEntity<ApiResponse<List<TaskResponse>>> createBatch(
             @Valid @RequestBody BatchCreateRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         if (!venueAccessService.canAccessVenue(user, request.venueId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Access denied to venue"));
+                    .body(ApiResponse.error("ACCESS_DENIED", "Access denied to venue"));
         }
 
         List<Task> tasks = taskService.createTasksFromTemplate(
                 request.tasks(),
                 request.templateName(),
                 request.venueId(),
-                user.getId()
-        );
+                user.getId());
         List<TaskResponse> response = tasks.stream().map(this::toResponse).toList();
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
@@ -180,16 +176,16 @@ public class TaskController {
     public ResponseEntity<ApiResponse<TaskResponse>> updateTask(
             @PathVariable Long id,
             @Valid @RequestBody UpdateTaskRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Task existing = taskService.getTask(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to task"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to task"));
             }
             if (!venueAccessService.userBelongsToVenue(request.assigneeId(), existing.getVenueId())) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("Assignee does not belong to this venue"));
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("INVALID_REQUEST", "Assignee does not belong to this venue"));
             }
 
             LocalDate dueDate = request.dueDate() != null ? LocalDate.parse(request.dueDate()) : null;
@@ -201,12 +197,11 @@ public class TaskController {
                     request.category().toUpperCase(),
                     request.requiresPhoto(),
                     request.assigneeId(),
-                    dueDate
-            );
+                    dueDate);
             return ResponseEntity.ok(ApiResponse.success(toResponse(task)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error("NOT_FOUND", e.getMessage()));
         }
     }
 
@@ -217,19 +212,18 @@ public class TaskController {
     public ResponseEntity<ApiResponse<TaskResponse>> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateStatusRequest request,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Task existing = taskService.getTask(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to task"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to task"));
             }
             Task task = taskService.updateTaskStatus(id, KanbanTaskStatus.valueOf(request.status().toUpperCase()));
             return ResponseEntity.ok(ApiResponse.success(toResponse(task)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error("NOT_FOUND", e.getMessage()));
         }
     }
 
@@ -241,19 +235,18 @@ public class TaskController {
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "markDone", defaultValue = "true") boolean markDone,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Task existing = taskService.getTask(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to task"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to task"));
             }
             Task task = taskService.uploadPhoto(id, file, markDone);
             return ResponseEntity.ok(ApiResponse.success(toResponse(task)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error("NOT_FOUND", e.getMessage()));
         }
     }
 
@@ -263,19 +256,18 @@ public class TaskController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteTask(
             @PathVariable Long id,
-            @AuthenticationPrincipal User user
-    ) {
+            @AuthenticationPrincipal User user) {
         try {
             Task existing = taskService.getTask(id);
             if (!venueAccessService.canAccessVenue(user, existing.getVenueId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("Access denied to task"));
+                        .body(ApiResponse.error("ACCESS_DENIED", "Access denied to task"));
             }
             taskService.deleteTask(id);
             return ResponseEntity.ok(ApiResponse.success(null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(ApiResponse.error("NOT_FOUND", e.getMessage()));
         }
     }
 
@@ -292,13 +284,12 @@ public class TaskController {
                 task.isRequiresPhoto(),
                 task.getPhotoUrl(),
                 task.getAssigneeId(),
-                null,  // assigneeName resolved on frontend
+                null, // assigneeName resolved on frontend
                 task.getDueDate() != null ? task.getDueDate().toString() : null,
                 task.getVenueId(),
                 task.getCreatedByUserId(),
                 task.getCreatedFromTemplate(),
                 task.getCreatedAt().toString(),
-                task.getUpdatedAt().toString()
-        );
+                task.getUpdatedAt().toString());
     }
 }

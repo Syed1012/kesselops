@@ -1,4 +1,4 @@
--- V3__Create_tasks_table.sql
+-- V3__Create_Tasks_Table.sql
 -- Standalone tasks table for Kanban board (separate from checklist task_items)
 
 CREATE TABLE tasks (
