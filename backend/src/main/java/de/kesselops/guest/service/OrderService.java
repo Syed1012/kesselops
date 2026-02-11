@@ -19,6 +19,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final CartService cartService;
+    private final de.kesselops.inventory.service.StockDepletionService stockDepletionService;
 
     /**
      * Create an order for a session.
@@ -52,6 +53,19 @@ public class OrderService {
 
         order.setTotalAmount(orderTotal);
         Order savedOrder = orderRepository.save(order);
+
+        // Deplete inventory
+        for (OrderItem item : savedOrder.getItems()) {
+            try {
+                stockDepletionService.depleteForMenuItem(item.getMenuItemId(), item.getQuantity(), savedOrder.getId());
+            } catch (Exception e) {
+                // Log but don't fail the order if inventory fails
+                // In a real system, you might want to validate stock BEFORE creating the order
+                // For now, we just log the depletion failure
+                System.err.println(
+                        "Failed to deplete inventory for item " + item.getMenuItemId() + ": " + e.getMessage());
+            }
+        }
 
         // Clear cart after order is placed
         cartService.clearCart(sessionId);

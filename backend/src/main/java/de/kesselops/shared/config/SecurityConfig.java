@@ -47,6 +47,7 @@ public class SecurityConfig {
                         // Guest/Public endpoints
                         .requestMatchers("/api/tables/*/sessions/start", "/api/tables/*/active-status").permitAll()
                         .requestMatchers("/api/menu-items/available").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/menu-items").permitAll()
                         .requestMatchers("/api/sessions/search").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/reservations").permitAll()
                         .requestMatchers("/api/sessions/*").permitAll()

@@ -6,6 +6,7 @@ import de.kesselops.guest.model.TableEntity;
 import de.kesselops.guest.repository.SessionRepository;
 import de.kesselops.guest.repository.TableRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,24 +16,15 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class SessionService {
 
     private final SessionRepository sessionRepository;
     private final TableRepository tableRepository;
 
-    /**
-     * Start or join a session via QR scan.
-     * 
-     * Flow:
-     * 1. If NO active session: Create new session, generate 4-digit code.
-     * 2. If ACTIVE session exists:
-     * - If provided code matches session code -> Join success.
-     * - If provided code mismatched/missing -> Throw 401 (Frontend prompts user).
-     * 
-     * @param tableId the table ID
-     * @param code    the provided code (optional for new sessions)
-     */
     public Session startSession(Long tableId, String code) {
+        log.info("Starting/Joining session for table {} with code {}", tableId, code);
+
         TableEntity table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableId));
 
@@ -42,13 +34,18 @@ public class SessionService {
 
         if (existingSession.isPresent()) {
             Session activeSession = existingSession.get();
+            log.info("Found existing active session {} for table {}", activeSession.getId(), tableId);
+
             // Verify code to join existing session
             if (code == null || !code.equals(activeSession.getSessionCode())) {
+                log.warn("Join failed for table {}: code mismatch or missing", tableId);
                 throw new SecurityException("Enter session code to join table");
             }
+            log.info("User successfully joined existing session {} for table {}", activeSession.getId(), tableId);
             return activeSession;
         }
 
+        log.info("No active session for table {}. Creating new session.", tableId);
         // Create new session with random 4-digit code
         String sessionCode = String.format("%04d", new java.security.SecureRandom().nextInt(10000));
 

@@ -2,6 +2,7 @@ package de.kesselops.guest.service;
 
 import de.kesselops.guest.model.CartItem;
 import de.kesselops.guest.repository.CartItemRepository;
+import de.kesselops.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,12 +17,16 @@ import java.util.Optional;
 public class CartService {
 
     private final CartItemRepository cartItemRepository;
+    private final de.kesselops.guest.repository.SessionRepository sessionRepository;
 
     /**
      * Get all cart items for a session.
      */
     @Transactional(readOnly = true)
     public List<CartItem> getSessionCart(Long sessionId) {
+        if (!sessionRepository.existsById(sessionId)) {
+            throw new ResourceNotFoundException("Session", sessionId);
+        }
         return cartItemRepository.findBySessionId(sessionId);
     }
 
@@ -30,6 +35,10 @@ public class CartService {
      */
     public CartItem addToCart(Long sessionId, Long menuItemId, String menuItemName,
             BigDecimal unitPrice, String menuItemImage) {
+        if (!sessionRepository.existsById(sessionId)) {
+            throw new ResourceNotFoundException("Session", sessionId);
+        }
+
         Optional<CartItem> existing = cartItemRepository.findBySessionIdAndMenuItemId(sessionId, menuItemId);
 
         if (existing.isPresent()) {
