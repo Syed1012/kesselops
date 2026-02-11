@@ -44,6 +44,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
+                        // Guest/Public endpoints
+                        .requestMatchers("/api/tables/*/sessions/start", "/api/tables/*/active-status").permitAll()
+                        .requestMatchers("/api/menu-items/available").permitAll()
+                        .requestMatchers("/api/sessions/search").permitAll()
+                        .requestMatchers("/api/sessions/*").permitAll()
+                        .requestMatchers("/api/ai/**").permitAll()
+                        .requestMatchers("/api/sessions/*/orders/**").permitAll()
+                        .requestMatchers("/api/sessions/*/cart/**").permitAll()
+                        .requestMatchers("/api/sessions/*/payments/**").permitAll()
+                        .requestMatchers("/api/cart/**").permitAll()
+                        .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // All other endpoints require authentication

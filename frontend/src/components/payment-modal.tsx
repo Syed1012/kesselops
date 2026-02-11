@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CreditCard, Smartphone, Check, Mail, Download, Receipt, ChevronRight, Apple, AlertCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSessionStore, selectOrdersTotal } from "@/lib/session-store";
-import { createPayment, getSession, type Payment } from "@/lib/api";
+import { createPayment, getSession, getSessionPayments, type Payment } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { VISUAL_MENU } from "@/lib/menu-data";
@@ -82,13 +82,9 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     const fetchPayments = async () => {
         if (!session?.id) return;
         try {
-            const res = await fetch(`/api/sessions/${session.id}/payments`);
-            if (res.ok) {
-                const data = await res.json();
-                setPayments(data);
-            } else {
-                setPayments([]);
-            }
+            // Use API client which correctly handles ApiResponse wrapper
+            const data = await getSessionPayments(session.id);
+            setPayments(data);
         } catch (err) {
             console.error('Failed to fetch payments:', err);
             setPayments([]);

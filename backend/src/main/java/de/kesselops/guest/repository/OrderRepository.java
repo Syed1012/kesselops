@@ -10,4 +10,6 @@ import java.util.List;
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findBySessionId(Long sessionId);
+
+    List<Order> findByStatusNot(de.kesselops.guest.model.OrderStatus status);
 }
