@@ -99,6 +99,7 @@ export interface CreateReservationRequest {
     reservationTime: string;
 }
 
+
 // ============================================
 // API FUNCTIONS
 // ============================================
@@ -137,6 +138,125 @@ export async function checkActiveSession(tableId: number): Promise<boolean> {
         return res.json();
     }
     return false;
+}
+
+// ============================================
+// MENU ITEM FUNCTIONS
+// ============================================
+
+/**
+ * Get all available menu items for a venue (non-paginated).
+ * Uses: GET /api/menu-items/available?venueId=X
+ * Returns: ApiResponse<MenuItem[]> -> unwrap data
+ */
+export async function getAvailableMenuItems(venueId: number): Promise<MenuItem[]> {
+    const res = await fetch(`${API_BASE}/api/menu-items/available?venueId=${venueId}`);
+    if (!res.ok) {
+        throw new Error('Failed to fetch menu items');
+    }
+    const json = await res.json();
+    return json.data || [];
+}
+
+/**
+ * Get menu items with optional category filter and search (paginated).
+ * Uses: GET /api/menu-items?venueId=X&category=Y&search=Z&size=100
+ * Returns: PagedResponse<MenuItem> -> unwrap data.content
+ */
+export async function getMenuItems(
+    venueId: number,
+    options?: { category?: MenuCategory; search?: string; page?: number; size?: number }
+): Promise<{ items: MenuItem[]; totalElements: number; totalPages: number }> {
+    const params = new URLSearchParams();
+    params.set('venueId', String(venueId));
+    params.set('size', String(options?.size || 50));
+    params.set('page', String(options?.page || 0));
+    if (options?.category) params.set('category', options.category);
+    if (options?.search) params.set('search', options.search);
+
+    const res = await fetch(`${API_BASE}/api/menu-items?${params.toString()}`);
+    if (!res.ok) {
+        throw new Error('Failed to fetch menu items');
+    }
+    const json = await res.json();
+    return {
+        items: json.data?.content || [],
+        totalElements: json.data?.totalElements || 0,
+        totalPages: json.data?.totalPages || 0,
+    };
+}
+
+// ============================================
+// AI FUNCTIONS
+// ============================================
+
+export interface AIChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface AIChatResponse {
+    reply: string;
+    model: string;
+}
+
+export interface AIRecommendation {
+    item: MenuItem;
+    reason: string;
+}
+
+export interface AIRecommendationResponse {
+    recommendations: AIRecommendation[];
+    reasoning: string;
+}
+
+/**
+ * Send a chat message to the AI menu assistant.
+ */
+export async function aiChat(
+    message: string,
+    history: AIChatMessage[],
+    venueId: number = 1,
+    sessionId?: number
+): Promise<AIChatResponse> {
+    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            message,
+            history,
+            venueId,
+            sessionId: sessionId || null,
+        }),
+    });
+    if (!res.ok) {
+        throw new Error('AI chat request failed');
+    }
+    const json = await res.json();
+    return json.data;
+}
+
+/**
+ * Get AI-powered menu recommendations.
+ */
+export async function aiRecommendations(
+    venueId: number = 1,
+    cartItemNames?: string[],
+    preferences?: string
+): Promise<AIRecommendationResponse> {
+    const res = await fetch(`${API_BASE}/api/ai/recommendations?venueId=${venueId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            cartItemNames: cartItemNames || [],
+            preferences: preferences || '',
+        }),
+    });
+    if (!res.ok) {
+        throw new Error('AI recommendations request failed');
+    }
+    const json = await res.json();
+    return json.data;
 }
 
 /**
@@ -463,6 +583,7 @@ export interface MenuItem {
     venueId: number;
     available: boolean;
     active: boolean;
+    imageUrl: string | null;
     hasRecipe: boolean;
     createdAt: string;
     updatedAt: string;

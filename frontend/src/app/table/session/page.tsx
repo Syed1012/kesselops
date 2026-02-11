@@ -21,22 +21,24 @@ import {
   AlertCircle,
   Receipt,
   Bell,
-  ShoppingBag
+  ShoppingBag,
+  Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format, addDays, startOfToday } from "date-fns";
 import { useSessionStore, selectOrdersTotal, selectIsSessionActive, selectCartItemCount, selectTotalPaid } from "@/lib/session-store";
-import { startSession as apiStartSession, getSessionOrders, getSessionCart, addToCart as apiAddToCart, updateCartItemQuantity, removeFromCart as apiRemoveFromCart, findSessionByCode, getSessionPayments, checkActiveSession } from "@/lib/api";
+import { startSession as apiStartSession, getSessionOrders, getSessionCart, addToCart as apiAddToCart, updateCartItemQuantity, removeFromCart as apiRemoveFromCart, findSessionByCode, getSessionPayments, checkActiveSession, getAvailableMenuItems, getMenuItems } from "@/lib/api";
+import type { MenuItem, MenuCategory } from "@/lib/api";
 import { JoinSessionModal } from "@/components/join-session-modal";
 import { CartDrawer, CartButton } from "@/components/cart-drawer";
 import { PaymentModal } from "@/components/payment-modal";
 import { SessionBanner } from "@/components/session-banner";
-import { VISUAL_MENU } from "@/lib/menu-data";
 import { OrderHistoryDrawer } from "@/components/order-history-drawer";
 import { WaiterNotification } from "@/components/waiter-notification";
 import { SessionStartFlow } from "@/components/session-start-flow";
 import { ReservationModal } from "@/components/reservation-modal";
+import { AIChatWidget } from "@/components/ai-chat-widget";
 
 const REVIEWS = [
   {
@@ -99,6 +101,13 @@ function TableSessionPageContent() {
   const containerRef = useRef(null);
   const initSessionRef = useRef<string | null>(null);
   const searchParams = useSearchParams();
+
+  // Menu state
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<MenuCategory | 'ALL'>('ALL');
+  const [menuSearch, setMenuSearch] = useState('');
+  const menuSearchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Session store
   const { session, setSession, setTableInfo, orders, syncOrders, syncCart, syncPayments } = useSessionStore();
@@ -250,7 +259,62 @@ function TableSessionPageContent() {
     restDelta: 0.001
   });
 
-  const handleAddToCart = async (item: typeof VISUAL_MENU[0]) => {
+  // ============================================
+  // MENU FETCHING
+  // ============================================
+  const VENUE_ID = 1; // Midnight Lounge
+
+  useEffect(() => {
+    const fetchMenu = async () => {
+      setMenuLoading(true);
+      try {
+        if (activeCategory === 'ALL' && !menuSearch.trim()) {
+          // Fetch all available items
+          const items = await getAvailableMenuItems(VENUE_ID);
+          setMenuItems(items);
+        } else {
+          // Fetch with filters
+          const result = await getMenuItems(VENUE_ID, {
+            category: activeCategory !== 'ALL' ? activeCategory : undefined,
+            search: menuSearch.trim() || undefined,
+            size: 50,
+          });
+          setMenuItems(result.items);
+        }
+      } catch (err) {
+        console.error('Failed to fetch menu:', err);
+        setMenuItems([]);
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+
+    fetchMenu();
+  }, [activeCategory, menuSearch]);
+
+  // Debounced search handler
+  const handleMenuSearch = (value: string) => {
+    if (menuSearchDebounceRef.current) clearTimeout(menuSearchDebounceRef.current);
+    menuSearchDebounceRef.current = setTimeout(() => {
+      setMenuSearch(value);
+    }, 350);
+  };
+
+  const CATEGORY_LABELS: Record<MenuCategory | 'ALL', string> = {
+    ALL: 'All',
+    COCKTAIL: 'Cocktails',
+    BEER: 'Beer',
+    WINE: 'Wine',
+    SPIRIT: 'Spirits',
+    SOFT_DRINK: 'Soft Drinks',
+    HOT_DRINK: 'Hot Drinks',
+    FOOD: 'Food',
+    SNACK: 'Snacks',
+    DESSERT: 'Dessert',
+    OTHER: 'Other',
+  };
+
+  const handleAddToCart = async (item: MenuItem) => {
     if (!isSessionActive) {
       setSessionError('Please scan the QR code at your table to start ordering.');
       return;
@@ -262,13 +326,12 @@ function TableSessionPageContent() {
     }
 
     try {
-      await apiAddToCart(session.id, item.id, item.name, item.price, item.image);
+      await apiAddToCart(session.id, item.id, item.name, item.price, item.imageUrl || '');
       const dbCart = await getSessionCart(session.id);
       syncCart(dbCart);
       setIsCartOpen(true);
     } catch (err) {
       console.error("Failed to add to cart:", err);
-      // alert("Failed to add item to cart. Please try again.");
     }
   };
 
@@ -368,18 +431,18 @@ function TableSessionPageContent() {
         </div>
       )}
 
-      {/* Floating Action Buttons - Bottom Right */}
-      <div className="fixed bottom-8 right-8 z-30 flex flex-row gap-4 items-end">
+      {/* Floating Action Buttons - Stacked above AI Button */}
+      <div className="fixed bottom-24 right-6 z-30 flex flex-col gap-4 items-end">
 
         {/* Cart Button - Show if items in cart */}
         {cartItemCount > 0 && (
           <motion.button
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            whileHover={{ scale: 1.1 }}
+            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsCartOpen(true)}
-            className="bg-neutral-800 text-white p-4 rounded-full shadow-lg border border-white/10 hover:bg-neutral-700 relative"
+            className="h-14 w-14 bg-black/80 backdrop-blur-xl border border-amber-500/50 rounded-full flex items-center justify-center shadow-xl shadow-amber-900/40 text-amber-500 hover:border-amber-400 hover:shadow-amber-500/20 relative transition-all"
           >
             <ShoppingBag className="h-6 w-6" />
             <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-black rounded-full flex items-center justify-center text-xs font-bold shadow-lg border border-black/50">
@@ -394,7 +457,7 @@ function TableSessionPageContent() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             onClick={() => setIsOrderHistoryOpen(true)}
-            className="bg-neutral-800 text-white p-4 rounded-full shadow-lg border border-white/10 hover:bg-neutral-700"
+            className="h-14 w-14 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center shadow-xl shadow-black/50 text-white/80 hover:bg-white/10 hover:text-white transition-all"
           >
             <Receipt className="h-6 w-6" />
           </motion.button>
@@ -545,62 +608,120 @@ function TableSessionPageContent() {
         </div>
       </section>
 
-      {/* VISUAL MENU GRID */}
-      <section className="py-32 px-6 bg-[#050505]">
+      {/* DYNAMIC MENU */}
+      <section className="py-32 px-6 bg-[#050505]" id="menu">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-4xl font-serif text-white mb-4">Signature Serves</h2>
-            <p className="text-white/50">A sensory journey through taste and aroma</p>
-          </div>
+            <p className="text-white/50 mb-8">A sensory journey through taste and aroma</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-            {VISUAL_MENU.map((item, i) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className={cn(
-                  "group relative aspect-[4/3] rounded-2xl overflow-hidden transition-all",
-                  isSessionActive ? "cursor-pointer hover:shadow-2xl" : "cursor-default"
-                )}
-                onClick={() => isSessionActive && handleAddToCart(item)}
-              >
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                  style={{ backgroundImage: `url(${item.image})` }}
+            {/* Search Bar */}
+            <div className="max-w-md mx-auto mb-10">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/30" />
+                <input
+                  type="text"
+                  placeholder="Search our menu..."
+                  onChange={(e) => handleMenuSearch(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-full pl-12 pr-5 py-3.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all text-sm"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 group-hover:opacity-60 transition-opacity" />
+              </div>
+            </div>
 
-                {/* Add to Cart Button Overlay */}
-                {isSessionActive && (
-                  <motion.div
-                    className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
-                      <Plus className="h-6 w-6 text-black" />
-                    </div>
-                  </motion.div>
-                )}
-
-                <div className="absolute bottom-0 left-0 right-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                  <span className="inline-block px-3 py-1 bg-amber-500 text-black text-xs font-bold uppercase tracking-wider mb-3 rounded-full">
-                    {item.category}
-                  </span>
-                  <div className="flex justify-between items-end mb-2">
-                    <h3 className="text-2xl font-serif text-white">{item.name}</h3>
-                    <span className="text-xl font-bold text-amber-500">{item.priceDisplay}</span>
-                  </div>
-                  <p className="text-white/70 line-clamp-2 group-hover:text-white transition-colors">
-                    {item.desc}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
+            {/* Category Filter Tabs */}
+            <div className="flex flex-wrap justify-center gap-2 mb-10">
+              {(Object.keys(CATEGORY_LABELS) as Array<MenuCategory | 'ALL'>).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all border",
+                    activeCategory === cat
+                      ? "bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20"
+                      : "bg-transparent text-white/50 border-white/10 hover:border-white/30 hover:text-white/80"
+                  )}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Menu Grid */}
+          {menuLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="aspect-[4/3] rounded-2xl bg-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : menuItems.length === 0 ? (
+            <div className="text-center py-20">
+              <p className="text-white/40 text-lg">No items found</p>
+              <p className="text-white/20 text-sm mt-2">Try adjusting your search or filters</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+              {menuItems.map((item, i) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i * 0.05, 0.3) }}
+                  viewport={{ once: true }}
+                  className={cn(
+                    "group relative aspect-[4/3] rounded-2xl overflow-hidden transition-all",
+                    isSessionActive ? "cursor-pointer hover:shadow-2xl" : "cursor-default"
+                  )}
+                  onClick={() => isSessionActive && handleAddToCart(item)}
+                >
+                  {item.imageUrl ? (
+                    <div
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                      style={{ backgroundImage: `url(${item.imageUrl})` }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-amber-900/40 via-black to-black flex items-center justify-center">
+                      <span className="text-6xl opacity-20">🍽️</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 group-hover:opacity-60 transition-opacity" />
+
+                  {/* Unavailable Badge */}
+                  {!item.available && (
+                    <div className="absolute top-4 left-4 bg-red-500/90 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                      Sold Out
+                    </div>
+                  )}
+
+                  {/* Add to Cart Button Overlay */}
+                  {isSessionActive && item.available && (
+                    <motion.div
+                      className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                        <Plus className="h-6 w-6 text-black" />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div className="absolute bottom-0 left-0 right-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                    <span className="inline-block px-3 py-1 bg-amber-500 text-black text-xs font-bold uppercase tracking-wider mb-3 rounded-full">
+                      {CATEGORY_LABELS[item.category] || item.category}
+                    </span>
+                    <div className="flex justify-between items-end mb-2">
+                      <h3 className="text-2xl font-serif text-white">{item.name}</h3>
+                      <span className="text-xl font-bold text-amber-500">€{item.price.toFixed(0)}</span>
+                    </div>
+                    <p className="text-white/70 line-clamp-2 group-hover:text-white transition-colors">
+                      {item.description}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -686,6 +807,14 @@ function TableSessionPageContent() {
           </div>
         </div>
       </footer>
+
+      {/* AI Chat Widget */}
+      <AIChatWidget
+        venueId={VENUE_ID}
+        sessionId={session?.id}
+        cartItemNames={useSessionStore.getState().cart.map(c => c.menuItemName)}
+        onAddToCart={handleAddToCart}
+      />
     </main>
   );
 }

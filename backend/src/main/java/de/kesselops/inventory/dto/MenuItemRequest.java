@@ -32,6 +32,8 @@ public class MenuItemRequest {
 
     private Boolean available;
 
+    private String imageUrl;
+
     // Getters and Setters
     public String getName() {
         return name;
@@ -87,5 +89,13 @@ public class MenuItemRequest {
 
     public void setAvailable(Boolean available) {
         this.available = available;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

@@ -109,5 +109,8 @@ public class MenuItemServiceImpl implements MenuItemService {
         if (request.getAvailable() != null) {
             item.setAvailable(request.getAvailable());
         }
+        if (request.getImageUrl() != null) {
+            item.setImageUrl(request.getImageUrl());
+        }
     }
 }

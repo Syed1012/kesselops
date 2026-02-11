@@ -152,11 +152,20 @@ export function ReservationModal({ isOpen, onClose }: ReservationModalProps) {
                                         {/* Phone */}
                                         <div className="space-y-1">
                                             <input
-                                                required // Actually optional in backend? But good to have
+                                                required
                                                 type="tel"
+                                                maxLength={10}
                                                 placeholder="Phone Number"
                                                 value={form.phone}
-                                                onChange={e => setForm({ ...form, phone: e.target.value })}
+                                                onChange={e => {
+                                                    // Allow only numbers, +, -, and spaces
+                                                    let cleanPhone = e.target.value.replace(/[^0-9+\s-]/g, '');
+                                                    // Enforce max 10 characters
+                                                    if (cleanPhone.length > 10) {
+                                                        cleanPhone = cleanPhone.slice(0, 10);
+                                                    }
+                                                    setForm({ ...form, phone: cleanPhone });
+                                                }}
                                                 className="w-full border-b border-gray-300 py-2 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:border-amber-600 transition-colors bg-transparent"
                                             />
                                         </div>
@@ -191,10 +200,17 @@ export function ReservationModal({ isOpen, onClose }: ReservationModalProps) {
                                             <input
                                                 required
                                                 type="date"
-                                                min={format(new Date(), 'yyyy-MM-dd')}
+                                                min={format(startOfToday(), 'yyyy-MM-dd')}
                                                 value={form.date}
-                                                onChange={e => setForm({ ...form, date: e.target.value })}
-                                                className="w-full border-b border-gray-300 py-2 text-sm text-neutral-800 focus:outline-none focus:border-amber-600 transition-colors bg-transparent uppercase"
+                                                onChange={e => {
+                                                    // Ensure selected date is not in the past (double protection)
+                                                    const selected = new Date(e.target.value);
+                                                    const today = startOfToday();
+                                                    if (selected < today) return;
+                                                    setForm({ ...form, date: e.target.value });
+                                                }}
+                                                className="w-full border-b border-gray-300 py-2 text-sm text-neutral-800 focus:outline-none focus:border-amber-600 transition-colors bg-transparent uppercase cursor-pointer"
+                                                onClick={(e) => e.currentTarget.showPicker()}
                                             />
                                         </div>
 
@@ -238,8 +254,7 @@ export function ReservationModal({ isOpen, onClose }: ReservationModalProps) {
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className="w-full bg-[#A0522D] hover:bg-[#8B4513] text-white font-bold py-4 px-8 text-xs tracking-[0.15em] uppercase transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        style={{ backgroundColor: '#be7c58' }} // Approximate terracotta color from image
+                                        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold py-4 px-8 rounded-full shadow-lg shadow-amber-500/20 text-xs tracking-[0.15em] uppercase transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {isLoading ? 'Booking...' : 'Book A Table'}
                                     </button>

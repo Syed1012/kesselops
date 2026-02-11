@@ -98,7 +98,7 @@ export function SessionStartFlow({ isOpen, tableId, onSessionStarted, onJoinRequ
                                 <Button
                                     onClick={handleStart}
                                     disabled={isLoading}
-                                    className="w-full h-14 bg-amber-500 hover:bg-amber-600 text-black text-lg font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02]"
+                                    className="w-full h-14 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-lg font-bold rounded-full shadow-lg shadow-amber-500/20 border-t border-white/20 transition-all hover:scale-[1.02]"
                                 >
                                     {isLoading ? 'Starting...' : 'Start Session'}
                                 </Button>
@@ -106,9 +106,9 @@ export function SessionStartFlow({ isOpen, tableId, onSessionStarted, onJoinRequ
                                 <div className="pt-2">
                                     <p className="text-xs text-slate-500 mb-2">Joining friends?</p>
                                     <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         onClick={onJoinRequired}
-                                        className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                        className="w-full h-12 rounded-full border-white/10 bg-white/5 hover:bg-white/10 text-amber-500 hover:text-amber-400 font-medium transition-all"
                                     >
                                         Enter Session Code
                                     </Button>
