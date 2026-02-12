@@ -7,9 +7,9 @@ spring:
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
       - org.springframework.ai.autoconfigure.anthropic.AnthropicAutoConfiguration
   datasource:
-    url: jdbc:postgresql://localhost:5434/kesselops
-    username: kesselops
-    password: kesselops_dev
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/kesselops}
+    username: ${DB_USERNAME:kesselops}
+    password: ${DB_PASSWORD:kesselops_dev}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
