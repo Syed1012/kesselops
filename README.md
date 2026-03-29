@@ -1,7 +1,5 @@
 # KesselOps — The Brain Behind Every Shift
 
-**Hackathon Stuttgart 2026** · Feb 9–11 · "Code. Cocktails. Repeat."
-
 > **Tagline:** _The brain behind every shift._
 
 KesselOps is a modular monolith platform designed to streamline operations for hospitality businesses, from staff scheduling and inventory management to AI-powered menu descriptions and shift summaries.
